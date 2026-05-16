@@ -1,6 +1,9 @@
 # PAT key
 .pat
 
+# Clang formatter
+.clang-format
+
 # Compiled class file
 *.class
 
