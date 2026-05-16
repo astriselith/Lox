@@ -310,8 +310,6 @@ public class Main {
             }
             
             System.out.println("Executando: " + filePath.toString());
-            System.out.println("Configurações atuais:");
-            printCurrentSettings();
             System.out.println("----------------------------------------");
             
             runFile(filePath.toString());
