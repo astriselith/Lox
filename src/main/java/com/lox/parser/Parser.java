@@ -9,6 +9,7 @@ import com.lox.util.Pair;
 import com.lox.util.Position;
 
 public class Parser {
+	// Erros de parsing
 	private static final String ERR_UNEXPECTED = "Token inesperado: %s";
 	private static final String ERR_EXPECTED = "Esperado %s, encontrado %s";
 	private static final String ERR_VAR = "Esperado 'var'";
@@ -39,11 +40,13 @@ public class Parser {
 	private static final String ERR_DECOR_FUNCTION = "Funções não podem ter decoradores";
 	private static final String ERR_DECOR_AT = "Esperado '@'";
 	private static final String ERR_DECOR_VAR = "Esperado 'var' após decorator";
-	private static final String ERR_ARROW_DECL = "Declarações não são permitidas em arrow body";
+	private static final String ERR_ARROW_RETURN = "Return statement não permitido em arrow function. O valor é implícito";
+	private static final String ERR_ARROW_BREAK_CONTINUE = "Break/continue não permitido em arrow function";
 
 	private final TokenStream stream;
 	private FunDeclExpr currentFunction = null;
 	private int loopDepth = 0;
+	private boolean inVarDecl = false;
 
 	public Parser(TokenStream stream) {
 		this.stream = stream;
@@ -77,7 +80,7 @@ public class Parser {
 	private Position between(Token start, Position end) {
 		return Position.between(pos(start), end);
 	}
-	
+
 	private Position between(Position start, Token end) {
 		return Position.between(start, pos(end));
 	}
@@ -124,7 +127,7 @@ public class Parser {
 
 	private List<Expr> body() {
 		if (!stream.match(Type.LBRACE)) throw error(ERR_LBRACE);
-		
+
 		List<Expr> statements = new ArrayList<>();
 
 		while (!stream.isAtEnd() && !stream.check(Type.RBRACE)) {
@@ -159,30 +162,30 @@ public class Parser {
 
 	private DecorExpr decor() {
 		if (!stream.match(Type.AT)) throw error(ERR_DECOR_AT);
-		
+
 		Token atToken = stream.previous();
-		
+
 		if (!stream.check(Type.IDENTIFIER)) {
 			throw error(ERR_DECOR_NAME, atToken);
 		}
-		
+
 		Token nameToken = stream.advance();
 		List<Expr> args = null;
-		
+
 		if (stream.check(Type.LPAREN)) {
 			args = arguments();
 		}
-		
+
 		return new DecorExpr(nameToken.lexeme, args, between(atToken, nameToken));
 	}
 
 	private Expr decl() {
 		List<DecorExpr> decorators = new ArrayList<>();
-		
+
 		while (stream.check(Type.AT)) {
 			decorators.add(decor());
 		}
-		
+
 		if (stream.check(Type.VAR)) return varDecl(decorators);
 		if (stream.check(Type.FUN)) {
 			if (!decorators.isEmpty()) {
@@ -190,11 +193,11 @@ public class Parser {
 			}
 			return funDecl();
 		}
-		
+
 		if (!decorators.isEmpty()) {
 			throw error(ERR_DECOR_VAR);
 		}
-		
+
 		throw error("Erro interno: decl() chamado sem var ou fun");
 	}
 
@@ -212,7 +215,9 @@ public class Parser {
 
 		Expr value = null;
 		if (stream.match(Type.EQ) && !stream.match(Type.QUESTION)) {
+			inVarDecl = true;
 			value = expr();
+			inVarDecl = false;
 		}
 
 		semicolon();
@@ -250,11 +255,12 @@ public class Parser {
 		currentFunction = f;
 
 		if (stream.match(Type.ARROW)) {
-			Expr body = arrowBody();
+			Expr bodyExpr = arrow();
+			semicolon();
 			List<Expr> bodyList = new ArrayList<>();
-			bodyList.add(body);
+			bodyList.add(bodyExpr);
 			f.setBody(bodyList);
-			f.setPosition(between(start, body.getPosition()));
+			f.setPosition(between(start, bodyExpr.getPosition()));
 		} else if (stream.check(Type.LBRACE)) {
 			List<Expr> bodyList = body();
 			f.setBody(bodyList);
@@ -297,11 +303,11 @@ public class Parser {
 		if (!hasParens && !hasArrow) throw error(ERR_LAMBDA_ARROW);
 
 		if (hasArrow) {
-			Expr body = arrowBody();
+			Expr bodyExpr = arrow();
 			List<Expr> bodyList = new ArrayList<>();
-			bodyList.add(body);
+			bodyList.add(bodyExpr);
 			lambda.setBody(bodyList);
-			lambda.setPosition(between(start, body.getPosition()));
+			lambda.setPosition(between(start, bodyExpr.getPosition()));
 		} else if (stream.check(Type.LBRACE)) {
 			List<Expr> bodyList = body();
 			lambda.setBody(bodyList);
@@ -317,36 +323,22 @@ public class Parser {
 		return lambda;
 	}
 
-	private Expr arrowBody() {
+	private Expr arrow() {
 		if (stream.check(Type.LBRACE)) {
-			// Corpo em bloco
-			List<Expr> bodyList = body();
-			if (bodyList.size() == 1) {
-				return bodyList.get(0);
-			}
-			return new BlockExpr(bodyList, between(bodyList));
+			Expr table = block();
+			return new ReturnExpr(table, currentFunction, table.getPosition());
 		} else {
-			// Corpo de uma única statement (sem declarações)
-			return noDecl();
+			Expr expr = expr();
+			
+			if (expr instanceof ReturnExpr) {
+				throw error(ERR_ARROW_RETURN);
+			}
+			if (expr instanceof BreakExpr || expr instanceof ContinueExpr) {
+				throw error(ERR_ARROW_BREAK_CONTINUE);
+			}
+			
+			return new ReturnExpr(expr, currentFunction, expr.getPosition());
 		}
-	}
-
-	private Expr noDecl() {
-		Token t = stream.peek();
-
-		if (t.type == Type.IF) return ifStmt();
-		if (t.type == Type.WHILE) return whileStmt();
-		if (t.isBreak()) return breakStmt();
-		if (t.isContinue()) return continueStmt();
-		if (t.isReturn()) return returnStmt();
-		if (t.isThrow()) return throwStmt();
-		
-		// Impede declarações
-		if (t.type == Type.VAR || t.type == Type.FUN) {
-			throw error(ERR_ARROW_DECL, t);
-		}
-
-		return exprStmt();
 	}
 
 	private Expr stmt() {
@@ -380,7 +372,7 @@ public class Parser {
 			thenBranch = body();
 		} else {
 			thenBranch = new ArrayList<>();
-			thenBranch.add(noDecl());
+			thenBranch.add(stmt());
 		}
 
 		List<Expr> elseBranch = null;
@@ -390,7 +382,7 @@ public class Parser {
 				elseBranch = body();
 			} else {
 				elseBranch = new ArrayList<>();
-				elseBranch.add(noDecl());
+				elseBranch.add(stmt());
 			}
 		}
 
@@ -418,7 +410,7 @@ public class Parser {
 			bodyList = body();
 		} else {
 			bodyList = new ArrayList<>();
-			bodyList.add(noDecl());
+			bodyList.add(stmt());
 		}
 
 		loopDepth--;
@@ -469,7 +461,7 @@ public class Parser {
 	private Expr exprStmt() {
 		Token start = stream.peek();
 		Expr e = expr();
-		
+
 		if (!(e instanceof AssignExpr ||
 				e instanceof SetExpr ||
 				e instanceof IndexSetExpr ||
@@ -716,7 +708,7 @@ public class Parser {
 		if (!stream.check(Type.RPAREN)) {
 			do {
 				boolean isVararg = false;
-				
+
 				if (stream.check(Type.ELLIPSIS)) {
 					if (hasVarargs) throw error(ERR_VARARGS);
 					isVararg = true;
