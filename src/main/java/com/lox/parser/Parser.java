@@ -7,6 +7,7 @@ import com.lox.token.*;
 import com.lox.ast.*;
 import com.lox.util.Pair;
 import com.lox.util.Position;
+import static com.lox.token.Type.*;
 
 public class Parser {
 	// Erros de parsing
@@ -121,58 +122,58 @@ public class Parser {
 	}
 
 	private void semicolon() {
-		if (stream.check(Type.RBRACE)) return;
-		if (!stream.match(Type.SEMICOLON)) throw error(ERR_EXPECTED_SEMICOLON);
+		if (stream.check(RBRACE)) return;
+		if (!stream.match(SEMICOLON)) throw error(ERR_EXPECTED_SEMICOLON);
 	}
 
 	private List<Expr> body() {
-		if (!stream.match(Type.LBRACE)) throw error(ERR_LBRACE);
+		if (!stream.match(LBRACE)) throw error(ERR_LBRACE);
 
 		List<Expr> statements = new ArrayList<>();
 
-		while (!stream.isAtEnd() && !stream.check(Type.RBRACE)) {
+		while (!stream.isAtEnd() && !stream.check(RBRACE)) {
 			Expr s = stmt();
 			if (s != null) statements.add(s);
 		}
 
-		if (!stream.match(Type.RBRACE)) throw error(ERR_RBRACE);
+		if (!stream.match(RBRACE)) throw error(ERR_RBRACE);
 
 		return statements;
 	}
 
 	private Expr object() {
-		if (!stream.match(Type.LBRACE)) throw error(ERR_LBRACE);
+		if (!stream.match(LBRACE)) throw error(ERR_LBRACE);
 
 		Token start = stream.previous();
 		List<Expr> declarations = new ArrayList<>();
 
-		while (!stream.isAtEnd() && !stream.check(Type.RBRACE)) {
-			if (stream.checkAny(Type.VAR, Type.FUN)) {
+		while (!stream.isAtEnd() && !stream.check(RBRACE)) {
+			if (stream.checkAny(VAR, FUN)) {
 				declarations.add(decl());
 			} else {
 				throw error(ERR_BLOCK_TABLE, stream.peek());
 			}
 		}
 
-		if (!stream.match(Type.RBRACE)) throw error(ERR_RBRACE);
+		if (!stream.match(RBRACE)) throw error(ERR_RBRACE);
 
 		Token end = stream.previous();
 		return new ObjectExpr(declarations, between(start, end));
 	}
 
 	private DecorExpr decor() {
-		if (!stream.match(Type.AT)) throw error(ERR_DECOR_AT);
+		if (!stream.match(AT)) throw error(ERR_DECOR_AT);
 
 		Token atToken = stream.previous();
 
-		if (!stream.check(Type.IDENTIFIER)) {
+		if (!stream.check(IDENTIFIER)) {
 			throw error(ERR_DECOR_NAME, atToken);
 		}
 
 		Token nameToken = stream.advance();
 		List<Expr> args = null;
 
-		if (stream.check(Type.LPAREN)) {
+		if (stream.check(LPAREN)) {
 			args = arguments();
 		}
 
@@ -182,12 +183,12 @@ public class Parser {
 	private Expr decl() {
 		List<DecorExpr> decorators = new ArrayList<>();
 
-		while (stream.check(Type.AT)) {
+		while (stream.check(AT)) {
 			decorators.add(decor());
 		}
 
-		if (stream.check(Type.VAR)) return varDecl(decorators);
-		if (stream.check(Type.FUN)) {
+		if (stream.check(VAR)) return varDecl(decorators);
+		if (stream.check(FUN)) {
 			if (!decorators.isEmpty()) {
 				throw error(ERR_DECOR_FUNCTION, stream.peek());
 			}
@@ -204,17 +205,17 @@ public class Parser {
 	private Expr varDecl(List<DecorExpr> decorators) {
 		Token start = stream.peek();
 
-		if (!stream.match(Type.VAR)) throw error(ERR_VAR);
+		if (!stream.match(VAR)) throw error(ERR_VAR);
 
 		Token name;
-		if (stream.check(Type.IDENTIFIER)) {
+		if (stream.check(IDENTIFIER)) {
 			name = stream.advance();
 		} else {
 			throw error(ERR_NAME);
 		}
 
 		Expr value = null;
-		if (stream.match(Type.EQ) && !stream.match(Type.QUESTION)) {
+		if (stream.match(EQ) && !stream.match(QUESTION)) {
 			inVarDecl = true;
 			value = expr();
 			inVarDecl = false;
@@ -233,13 +234,13 @@ public class Parser {
 	private Expr funDecl() {
 		Token start = stream.peek();
 
-		if (!stream.match(Type.FUN)) throw error(ERR_FUN);
-		if (!stream.check(Type.IDENTIFIER)) throw error(ERR_NAME);
+		if (!stream.match(FUN)) throw error(ERR_FUN);
+		if (!stream.check(IDENTIFIER)) throw error(ERR_NAME);
 
 		Token nameToken = stream.advance();
 		String name = nameToken.lexeme;
 
-		if (!stream.check(Type.LPAREN)) throw error(ERR_LPAREN);
+		if (!stream.check(LPAREN)) throw error(ERR_LPAREN);
 
 		Pair<List<String>, Boolean> params = parameters();
 		FunDeclExpr prev = currentFunction;
@@ -254,14 +255,14 @@ public class Parser {
 
 		currentFunction = f;
 
-		if (stream.match(Type.ARROW)) {
+		if (stream.match(ARROW)) {
 			Expr bodyExpr = arrow();
 			semicolon();
 			List<Expr> bodyList = new ArrayList<>();
 			bodyList.add(bodyExpr);
 			f.setBody(bodyList);
 			f.setPosition(between(start, bodyExpr.getPosition()));
-		} else if (stream.check(Type.LBRACE)) {
+		} else if (stream.check(LBRACE)) {
 			List<Expr> bodyList = body();
 			f.setBody(bodyList);
 			f.setPosition(between(
@@ -279,7 +280,7 @@ public class Parser {
 	private Expr lambdaDecl() {
 		Token start = stream.advance();
 
-		boolean hasParens = stream.check(Type.LPAREN);
+		boolean hasParens = stream.check(LPAREN);
 		Pair<List<String>, Boolean> params;
 
 		if (hasParens) {
@@ -298,7 +299,7 @@ public class Parser {
 		);
 
 		currentFunction = lambda;
-		boolean hasArrow = stream.match(Type.ARROW);
+		boolean hasArrow = stream.match(ARROW);
 
 		if (!hasParens && !hasArrow) throw error(ERR_LAMBDA_ARROW);
 
@@ -308,7 +309,7 @@ public class Parser {
 			bodyList.add(bodyExpr);
 			lambda.setBody(bodyList);
 			lambda.setPosition(between(start, bodyExpr.getPosition()));
-		} else if (stream.check(Type.LBRACE)) {
+		} else if (stream.check(LBRACE)) {
 			List<Expr> bodyList = body();
 			lambda.setBody(bodyList);
 			lambda.setPosition(between(
@@ -324,7 +325,7 @@ public class Parser {
 	}
 
 	private Expr arrow() {
-		if (stream.check(Type.LBRACE)) {
+		if (stream.check(LBRACE)) {
 			Expr table = object();
 			return new ReturnExpr(table, currentFunction, table.getPosition());
 		} else {
@@ -344,12 +345,12 @@ public class Parser {
 	private Expr stmt() {
 		Token t = stream.peek();
 
-		if (t.type == Type.AT || t.type == Type.VAR || t.type == Type.FUN) {
+		if (t.type == AT || t.type == VAR || t.type == FUN) {
 			return decl();
 		}
 
-		if (t.type == Type.IF) return ifStmt();
-		if (t.type == Type.WHILE) return whileStmt();
+		if (t.type == IF) return ifStmt();
+		if (t.type == WHILE) return whileStmt();
 		if (t.isBreak()) return breakStmt();
 		if (t.isContinue()) return continueStmt();
 		if (t.isReturn()) return returnStmt();
@@ -361,14 +362,14 @@ public class Parser {
 	private Expr ifStmt() {
 		Token start = stream.advance();
 
-		if (!stream.match(Type.LPAREN)) throw error(ERR_IF);
+		if (!stream.match(LPAREN)) throw error(ERR_IF);
 
 		Expr condition = expr();
 
-		if (!stream.match(Type.RPAREN)) throw error(ERR_RPAREN);
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
 
 		List<Expr> thenBranch;
-		if (stream.check(Type.LBRACE)) {
+		if (stream.check(LBRACE)) {
 			thenBranch = body();
 		} else {
 			thenBranch = new ArrayList<>();
@@ -377,8 +378,8 @@ public class Parser {
 
 		List<Expr> elseBranch = null;
 
-		if (stream.match(Type.ELSE)) {
-			if (stream.check(Type.LBRACE)) {
+		if (stream.match(ELSE)) {
+			if (stream.check(LBRACE)) {
 				elseBranch = body();
 			} else {
 				elseBranch = new ArrayList<>();
@@ -397,16 +398,16 @@ public class Parser {
 	private Expr whileStmt() {
 		Token start = stream.advance();
 
-		if (!stream.match(Type.LPAREN)) throw error(ERR_WHILE);
+		if (!stream.match(LPAREN)) throw error(ERR_WHILE);
 
 		Expr condition = expr();
 
-		if (!stream.match(Type.RPAREN)) throw error(ERR_RPAREN);
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
 
 		loopDepth++;
 
 		List<Expr> bodyList;
-		if (stream.check(Type.LBRACE)) {
+		if (stream.check(LBRACE)) {
 			bodyList = body();
 		} else {
 			bodyList = new ArrayList<>();
@@ -435,7 +436,7 @@ public class Parser {
 	private Expr returnStmt() {
 		Token t = stream.advance();
 
-		if (stream.checkAny(Type.SEMICOLON, Type.RBRACE)) {
+		if (stream.checkAny(SEMICOLON, RBRACE)) {
 			semicolon();
 			return new ReturnExpr(null, currentFunction, pos(t));
 		}
@@ -448,7 +449,7 @@ public class Parser {
 	private Expr throwStmt() {
 		Token t = stream.advance();
 
-		if (stream.checkAny(Type.SEMICOLON, Type.RBRACE)) {
+		if (stream.checkAny(SEMICOLON, RBRACE)) {
 			semicolon();
 			return new ThrowExpr(null, currentFunction, pos(t));
 		}
@@ -496,7 +497,7 @@ public class Parser {
 			if (expr instanceof VarExpr) {
 				String name = ((VarExpr) expr).name;
 
-				if (op.type != Type.EQ) {
+				if (op.type != EQ) {
 					String binaryOp = op.lexeme.substring(0, op.lexeme.length() - 1);
 					Expr binary = new BinaryExpr(expr, binaryOp, value, between(op, value.getPosition()));
 					return new AssignExpr(name, binary, between(expr.getPosition(), value.getPosition()));
@@ -507,7 +508,7 @@ public class Parser {
 			} else if (expr instanceof GetExpr) {
 				GetExpr get = (GetExpr) expr;
 
-				if (op.type != Type.EQ) {
+				if (op.type != EQ) {
 					String binaryOp = op.lexeme.substring(0, op.lexeme.length() - 1);
 					Expr binary = new BinaryExpr(expr, binaryOp, value, between(op, value.getPosition()));
 					return new SetExpr(get.object, get.name, binary, between(expr.getPosition(), value.getPosition()));
@@ -518,7 +519,7 @@ public class Parser {
 			} else if (expr instanceof IndexGetExpr) {
 				IndexGetExpr idx = (IndexGetExpr) expr;
 
-				if (op.type != Type.EQ) {
+				if (op.type != EQ) {
 					String binaryOp = op.lexeme.substring(0, op.lexeme.length() - 1);
 					Expr binary = new BinaryExpr(expr, binaryOp, value, between(op, value.getPosition()));
 					return new IndexSetExpr(idx.array, idx.index, binary, between(expr.getPosition(), value.getPosition()));
@@ -536,7 +537,7 @@ public class Parser {
 	private Expr logicalOr() {
 		Expr expr = logicalAnd();
 
-		while (stream.match(Type.OR_OR)) {
+		while (stream.match(OR_OR)) {
 			Token op = stream.previous();
 			expr = new LogicalExpr(expr, op.lexeme, logicalAnd(), between(expr.getPosition(), stream.previous().getPosition()));
 		}
@@ -547,7 +548,7 @@ public class Parser {
 	private Expr logicalAnd() {
 		Expr expr = coalesce();
 
-		while (stream.match(Type.AND_AND)) {
+		while (stream.match(AND_AND)) {
 			Token op = stream.previous();
 			expr = new LogicalExpr(expr, op.lexeme, coalesce(), between(expr.getPosition(), stream.previous().getPosition()));
 		}
@@ -558,7 +559,7 @@ public class Parser {
 	private Expr coalesce() {
 		Expr expr = ternary();
 
-		while (stream.match(Type.QUESTION_QUESTION)) {
+		while (stream.match(QUESTION_QUESTION)) {
 			Token op = stream.previous();
 			Expr right = ternary();
 			expr = new BinaryExpr(expr, op.lexeme, right, between(expr.getPosition(), right.getPosition()));
@@ -570,9 +571,9 @@ public class Parser {
 	private Expr ternary() {
 		Expr expr = equality();
 
-		if (stream.match(Type.QUESTION)) {
+		if (stream.match(QUESTION)) {
 			Expr thenExpr = expr();
-			if (!stream.match(Type.COLON)) throw error(ERR_COLON);
+			if (!stream.match(COLON)) throw error(ERR_COLON);
 			Expr elseExpr = expr();
 			return new TernaryExpr(expr, thenExpr, elseExpr, between(expr.getPosition(), elseExpr.getPosition()));
 		}
@@ -583,7 +584,7 @@ public class Parser {
 	private Expr equality() {
 		Expr expr = comparison();
 
-		while (stream.matchAny(Type.EQ_EQ, Type.NOT_EQ)) {
+		while (stream.matchAny(EQ_EQ, NOT_EQ)) {
 			Token op = stream.previous();
 			expr = new BinaryExpr(expr, op.lexeme, comparison(), between(expr.getPosition(), stream.previous().getPosition()));
 		}
@@ -594,7 +595,7 @@ public class Parser {
 	private Expr comparison() {
 		Expr expr = term();
 
-		while (stream.matchAny(Type.LT, Type.GT, Type.LTE, Type.GTE)) {
+		while (stream.matchAny(LT, GT, LTE, GTE)) {
 			Token op = stream.previous();
 			expr = new BinaryExpr(expr, op.lexeme, term(), between(expr.getPosition(), stream.previous().getPosition()));
 		}
@@ -605,7 +606,7 @@ public class Parser {
 	private Expr term() {
 		Expr expr = factor();
 
-		while (stream.matchAny(Type.PLUS, Type.MINUS)) {
+		while (stream.matchAny(PLUS, MINUS)) {
 			Token op = stream.previous();
 			expr = new BinaryExpr(expr, op.lexeme, factor(), between(expr.getPosition(), stream.previous().getPosition()));
 		}
@@ -616,7 +617,7 @@ public class Parser {
 	private Expr factor() {
 		Expr expr = unary();
 
-		while (stream.matchAny(Type.STAR, Type.SLASH, Type.PERCENT)) {
+		while (stream.matchAny(STAR, SLASH, PERCENT)) {
 			Token op = stream.previous();
 			expr = new BinaryExpr(expr, op.lexeme, unary(), between(expr.getPosition(), stream.previous().getPosition()));
 		}
@@ -644,24 +645,24 @@ public class Parser {
 		Expr expr = primary();
 
 		while (true) {
-			if (stream.match(Type.DOT)) {
+			if (stream.match(DOT)) {
 				Token dot = stream.previous();
-				if (!stream.check(Type.IDENTIFIER)) throw error(ERR_NAME);
+				if (!stream.check(IDENTIFIER)) throw error(ERR_NAME);
 				Token name = stream.advance();
 				expr = new GetExpr(expr, name.lexeme, between(dot, name));
 				continue;
 			}
 
-			if (stream.match(Type.LBRACKET)) {
+			if (stream.match(LBRACKET)) {
 				Token bracket = stream.previous();
 				Expr idx = expr();
-				if (!stream.check(Type.RBRACKET)) throw error(ERR_RBRACKET);
+				if (!stream.check(RBRACKET)) throw error(ERR_RBRACKET);
 				Token rbracket = stream.advance();
 				expr = new IndexGetExpr(expr, idx, between(bracket, rbracket));
 				continue;
 			}
 
-			if (stream.check(Type.LPAREN)) {
+			if (stream.check(LPAREN)) {
 				List<Expr> args = arguments();
 				expr = new CallExpr(
 					expr,
@@ -684,80 +685,80 @@ public class Parser {
 	}
 
 	private List<Expr> arguments() {
-		if (!stream.match(Type.LPAREN)) throw error(ERR_LPAREN);
+		if (!stream.match(LPAREN)) throw error(ERR_LPAREN);
 
 		List<Expr> args = new ArrayList<>();
 
-		if (!stream.check(Type.RPAREN)) {
+		if (!stream.check(RPAREN)) {
 			do {
 				args.add(expr());
-			} while (stream.match(Type.COMMA));
+			} while (stream.match(COMMA));
 		}
 
-		if (!stream.match(Type.RPAREN)) throw error(ERR_RPAREN);
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
 
 		return args;
 	}
 
 	private Pair<List<String>, Boolean> parameters() {
-		if (!stream.match(Type.LPAREN)) throw error(ERR_LPAREN);
+		if (!stream.match(LPAREN)) throw error(ERR_LPAREN);
 
 		List<String> params = new ArrayList<>();
 		boolean hasVarargs = false;
 
-		if (!stream.check(Type.RPAREN)) {
+		if (!stream.check(RPAREN)) {
 			do {
 				boolean isVararg = false;
 
-				if (stream.check(Type.ELLIPSIS)) {
+				if (stream.check(ELLIPSIS)) {
 					if (hasVarargs) throw error(ERR_VARARGS);
 					isVararg = true;
 					hasVarargs = true;
 					stream.advance();
 				}
 
-				if (!stream.check(Type.IDENTIFIER)) throw error(ERR_PARAM);
+				if (!stream.check(IDENTIFIER)) throw error(ERR_PARAM);
 
 				Token p = stream.advance();
 				params.add(p.lexeme);
 
 				if (isVararg) {
-					if (!stream.checkAny(Type.RPAREN, Type.COMMA)) throw error(ERR_VARARGS_LAST, p);
-					if (stream.check(Type.COMMA)) throw error(ERR_VARARGS_LAST, p);
+					if (!stream.checkAny(RPAREN, COMMA)) throw error(ERR_VARARGS_LAST, p);
+					if (stream.check(COMMA)) throw error(ERR_VARARGS_LAST, p);
 				}
-			} while (stream.match(Type.COMMA));
+			} while (stream.match(COMMA));
 		}
 
-		if (!stream.match(Type.RPAREN)) throw error(ERR_RPAREN);
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
 
 		return Pair.of(params, hasVarargs);
 	}
 
 	private Expr array() {
-		if (!stream.match(Type.LBRACKET)) throw error(ERR_LBRACKET);
+		if (!stream.match(LBRACKET)) throw error(ERR_LBRACKET);
 
 		Token start = stream.previous();
 		List<Expr> elements = new ArrayList<>();
 
-		if (!stream.check(Type.RBRACKET)) {
+		if (!stream.check(RBRACKET)) {
 			do {
 				elements.add(expr());
-			} while (stream.match(Type.COMMA));
+			} while (stream.match(COMMA));
 		}
 
-		if (!stream.match(Type.RBRACKET)) throw error(ERR_RBRACKET);
+		if (!stream.match(RBRACKET)) throw error(ERR_RBRACKET);
 
 		Token end = stream.previous();
 		return new ArrayExpr(elements, between(start, end));
 	}
 
 	private Expr parenthesis() {
-		if (!stream.match(Type.LPAREN)) throw error(ERR_LPAREN);
+		if (!stream.match(LPAREN)) throw error(ERR_LPAREN);
 
 		Token start = stream.previous();
 		Expr inner = expr();
 
-		if (!stream.match(Type.RPAREN)) throw error(ERR_RPAREN);
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
 
 		Token end = stream.previous();
 		return new ParenthesisExpr(inner, between(start, end));
@@ -769,14 +770,14 @@ public class Parser {
 			return new LiteralExpr(t.literal, pos(t));
 		}
 
-		if (stream.match(Type.IDENTIFIER)) {
+		if (stream.match(IDENTIFIER)) {
 			return new VarExpr(stream.previous().lexeme, pos(stream.previous()));
 		}
 
-		if (stream.check(Type.FUN)) return lambdaDecl();
-		if (stream.check(Type.LBRACKET)) return array();
-		if (stream.check(Type.LBRACE)) return object();
-		if (stream.check(Type.LPAREN)) return parenthesis();
+		if (stream.check(FUN)) return lambdaDecl();
+		if (stream.check(LBRACKET)) return array();
+		if (stream.check(LBRACE)) return object();
+		if (stream.check(LPAREN)) return parenthesis();
 
 		throw errorUnexpected(stream.peek());
 	}
