@@ -1,7 +1,0 @@
-BasedOnStyle: Google
-Language: Java
-
-UseTab: Always
-IndentWidth: 1
-TabWidth: 1
-ContinuationIndentWidth: 1
