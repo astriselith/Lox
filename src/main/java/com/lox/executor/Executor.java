@@ -349,7 +349,7 @@ public class Executor implements ExprVisitor<Value>, Callable {
 	}
 
 	@Override
-	public Value visitBlockExpr(BlockExpr expr) {
+	public Value visitObjectExpr(ObjectExpr expr) {
 		TableValue previous = this.current;
 		TableValue blockEnv = this.current.child();
 		this.current = blockEnv;

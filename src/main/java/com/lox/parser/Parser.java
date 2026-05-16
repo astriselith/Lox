@@ -140,7 +140,7 @@ public class Parser {
 		return statements;
 	}
 
-	private Expr block() {
+	private Expr object() {
 		if (!stream.match(Type.LBRACE)) throw error(ERR_LBRACE);
 
 		Token start = stream.previous();
@@ -157,7 +157,7 @@ public class Parser {
 		if (!stream.match(Type.RBRACE)) throw error(ERR_RBRACE);
 
 		Token end = stream.previous();
-		return new BlockExpr(declarations, between(start, end));
+		return new ObjectExpr(declarations, between(start, end));
 	}
 
 	private DecorExpr decor() {
@@ -325,7 +325,7 @@ public class Parser {
 
 	private Expr arrow() {
 		if (stream.check(Type.LBRACE)) {
-			Expr table = block();
+			Expr table = object();
 			return new ReturnExpr(table, currentFunction, table.getPosition());
 		} else {
 			Expr expr = expr();
@@ -775,7 +775,7 @@ public class Parser {
 
 		if (stream.check(Type.FUN)) return lambdaDecl();
 		if (stream.check(Type.LBRACKET)) return array();
-		if (stream.check(Type.LBRACE)) return block();
+		if (stream.check(Type.LBRACE)) return object();
 		if (stream.check(Type.LPAREN)) return parenthesis();
 
 		throw errorUnexpected(stream.peek());

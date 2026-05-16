@@ -170,9 +170,9 @@ public class Dumper implements ExprVisitor<String> {
     }
     
     @Override
-    public String visitBlockExpr(BlockExpr expr) {
+    public String visitObjectExpr(ObjectExpr expr) {
         StringBuilder sb = new StringBuilder();
-        sb.append(indentString()).append("BlockExpr");
+        sb.append(indentString()).append("ObjectExpr");
         sb.append(positionString(expr.getPosition()));
         sb.append(typeString(expr));
         sb.append("\n");

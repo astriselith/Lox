@@ -15,7 +15,7 @@ public interface ExprVisitor<T> {
     T visitIndexGetExpr(IndexGetExpr expr);
     T visitIndexSetExpr(IndexSetExpr expr);
     T visitArrayExpr(ArrayExpr expr);
-    T visitBlockExpr(BlockExpr expr);
+    T visitObjectExpr(ObjectExpr expr);
     T visitVarDeclExpr(VarDeclExpr expr);
     T visitFunDeclExpr(FunDeclExpr expr);
     T visitReturnExpr(ReturnExpr expr);

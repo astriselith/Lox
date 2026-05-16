@@ -31,7 +31,7 @@ public class Printer implements ExprVisitor<String> {
                 for (Expr e : expressions) {
                     sb.append("\n").append(indentString());
                     sb.append(e.accept(this));
-                    if (!(e instanceof BlockExpr) && !(e instanceof FunDeclExpr)) {
+                    if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
                         sb.append(";");
                     }
                 }
@@ -92,14 +92,14 @@ public class Printer implements ExprVisitor<String> {
         }
         sb.append(") ");
         
-        if (expr.getBody().size() == 1 && !(expr.getBody().get(0) instanceof BlockExpr)) {
+        if (expr.getBody().size() == 1 && !(expr.getBody().get(0) instanceof ObjectExpr)) {
             sb.append("-> ").append(expr.getBody().get(0).accept(this));
         } else {
             sb.append("{");
             indent++;
             for (Expr e : expr.getBody()) {
                 sb.append("\n").append(indentString()).append(e.accept(this));
-                if (!(e instanceof BlockExpr) && !(e instanceof FunDeclExpr)) {
+                if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
                     sb.append(";");
                 }
             }
@@ -126,7 +126,7 @@ public class Printer implements ExprVisitor<String> {
     }
     
     @Override
-    public String visitBlockExpr(BlockExpr expr) {
+    public String visitObjectExpr(ObjectExpr expr) {
         StringBuilder sb = new StringBuilder();
         printList(expr.getExpressions(), sb, true);
         return sb.toString();
@@ -137,14 +137,14 @@ public class Printer implements ExprVisitor<String> {
         StringBuilder sb = new StringBuilder();
         sb.append("if (").append(expr.condition.accept(this)).append(") ");
         
-        if (expr.thenBranch.size() == 1 && !(expr.thenBranch.get(0) instanceof BlockExpr)) {
+        if (expr.thenBranch.size() == 1 && !(expr.thenBranch.get(0) instanceof ObjectExpr)) {
             sb.append(expr.thenBranch.get(0).accept(this));
         } else {
             sb.append("{");
             indent++;
             for (Expr e : expr.thenBranch) {
                 sb.append("\n").append(indentString()).append(e.accept(this));
-                if (!(e instanceof BlockExpr) && !(e instanceof FunDeclExpr)) {
+                if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
                     sb.append(";");
                 }
             }
@@ -154,14 +154,14 @@ public class Printer implements ExprVisitor<String> {
         
         if (expr.elseBranch != null && !expr.elseBranch.isEmpty()) {
             sb.append(" else ");
-            if (expr.elseBranch.size() == 1 && !(expr.elseBranch.get(0) instanceof BlockExpr)) {
+            if (expr.elseBranch.size() == 1 && !(expr.elseBranch.get(0) instanceof ObjectExpr)) {
                 sb.append(expr.elseBranch.get(0).accept(this));
             } else {
                 sb.append("{");
                 indent++;
                 for (Expr e : expr.elseBranch) {
                     sb.append("\n").append(indentString()).append(e.accept(this));
-                    if (!(e instanceof BlockExpr) && !(e instanceof FunDeclExpr)) {
+                    if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
                         sb.append(";");
                     }
                 }
@@ -178,14 +178,14 @@ public class Printer implements ExprVisitor<String> {
         StringBuilder sb = new StringBuilder();
         sb.append("while (").append(expr.condition.accept(this)).append(") ");
         
-        if (expr.body.size() == 1 && !(expr.body.get(0) instanceof BlockExpr)) {
+        if (expr.body.size() == 1 && !(expr.body.get(0) instanceof ObjectExpr)) {
             sb.append(expr.body.get(0).accept(this));
         } else {
             sb.append("{");
             indent++;
             for (Expr e : expr.body) {
                 sb.append("\n").append(indentString()).append(e.accept(this));
-                if (!(e instanceof BlockExpr) && !(e instanceof FunDeclExpr)) {
+                if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
                     sb.append(";");
                 }
             }

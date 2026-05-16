@@ -3,10 +3,10 @@ package com.lox.ast;
 import com.lox.util.Position;
 import java.util.List;
 
-public class BlockExpr extends Expr {
+public class ObjectExpr extends Expr {
     private final List<Expr> expressions;
     
-    public BlockExpr(List<Expr> expressions, Position position) {
+    public ObjectExpr(List<Expr> expressions, Position position) {
         super(position);
         this.expressions = expressions;
     }
@@ -17,6 +17,6 @@ public class BlockExpr extends Expr {
     
     @Override
     public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitBlockExpr(this);
+        return visitor.visitObjectExpr(this);
     }
 }
