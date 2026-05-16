@@ -26,9 +26,6 @@ const fun main() {
 
     println("resultado final:");
     println(result);
-
-    return result;
 }
 
 main();
-null;
