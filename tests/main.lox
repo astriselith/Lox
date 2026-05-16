@@ -1,4 +1,4 @@
-const fun main() {
+fun main() {
     var nums = [1, 2, 3, 4, 5];
 
     fun double(x) -> x * 2;

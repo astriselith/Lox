@@ -14,7 +14,7 @@ public class StringValue extends TableValue {
     private void init() {
         declare("length", NumberValue.of(value.length()));
         
-        declare("repeat", new FunctionValue(null, null, null) {
+        FunctionValue repeatFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 if (!arguments.get(0).isNumber()) {
@@ -33,9 +33,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "repeat"; }
+        };
+        declare("repeat", repeatFunc);
         
-        declare("toUpperCase", new FunctionValue(null, null, null) {
+        FunctionValue toUpperCaseFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 return new StringValue(value.toUpperCase());
@@ -43,9 +50,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 0; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 0; }
+            @Override
+            public String getName() { return "toUpperCase"; }
+        };
+        declare("toUpperCase", toUpperCaseFunc);
         
-        declare("toLowerCase", new FunctionValue(null, null, null) {
+        FunctionValue toLowerCaseFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 return new StringValue(value.toLowerCase());
@@ -53,9 +67,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 0; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 0; }
+            @Override
+            public String getName() { return "toLowerCase"; }
+        };
+        declare("toLowerCase", toLowerCaseFunc);
         
-        declare("substring", new FunctionValue(null, null, null) {
+        FunctionValue substringFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 if (!arguments.get(0).isNumber()) {
@@ -77,9 +98,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 2; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 2; }
+            @Override
+            public String getName() { return "substring"; }
+        };
+        declare("substring", substringFunc);
         
-        declare("split", new FunctionValue(null, null, null) {
+        FunctionValue splitFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 String delimiter = arguments.get(0).toString();
@@ -93,9 +121,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "split"; }
+        };
+        declare("split", splitFunc);
         
-        declare("charAt", new FunctionValue(null, null, null) {
+        FunctionValue charAtFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 if (!arguments.get(0).isNumber()) {
@@ -110,9 +145,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "charAt"; }
+        };
+        declare("charAt", charAtFunc);
         
-        declare("indexOf", new FunctionValue(null, null, null) {
+        FunctionValue indexOfFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 String search = arguments.get(0).toString();
@@ -121,9 +163,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "indexOf"; }
+        };
+        declare("indexOf", indexOfFunc);
         
-        declare("startsWith", new FunctionValue(null, null, null) {
+        FunctionValue startsWithFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 String prefix = arguments.get(0).toString();
@@ -132,9 +181,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "startsWith"; }
+        };
+        declare("startsWith", startsWithFunc);
         
-        declare("endsWith", new FunctionValue(null, null, null) {
+        FunctionValue endsWithFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 String suffix = arguments.get(0).toString();
@@ -143,9 +199,16 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "endsWith"; }
+        };
+        declare("endsWith", endsWithFunc);
         
-        declare("trim", new FunctionValue(null, null, null) {
+        FunctionValue trimFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 return new StringValue(value.trim());
@@ -153,9 +216,14 @@ public class StringValue extends TableValue {
             
             @Override
             public int arity() { return 0; }
-        });
-        
-        lock();
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 0; }
+            @Override
+            public String getName() { return "trim"; }
+        };
+        declare("trim", trimFunc);
     }
     
     public String getValue() {

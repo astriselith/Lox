@@ -63,7 +63,10 @@ public class Printer implements ExprVisitor<String> {
     @Override
     public String visitVarDeclExpr(VarDeclExpr expr) {
         StringBuilder sb = new StringBuilder();
-        sb.append(expr.isConst ? "const " : "").append("var ").append(expr.name);
+        for (Expr d : expr.decorators) {
+            sb.append(d.accept(this)).append(" ");
+        }
+        sb.append("var ").append(expr.name);
         if (expr.value != null) {
             sb.append(" = ").append(expr.value.accept(this));
         }
@@ -73,7 +76,7 @@ public class Printer implements ExprVisitor<String> {
     @Override
     public String visitFunDeclExpr(FunDeclExpr expr) {
         StringBuilder sb = new StringBuilder();
-        sb.append(expr.isConst ? "const " : "").append("fun ");
+        sb.append("fun ");
         if (!expr.name.isEmpty()) {
             sb.append(expr.name);
         }
@@ -104,6 +107,21 @@ public class Printer implements ExprVisitor<String> {
             sb.append("\n").append(indentString()).append("}");
         }
         
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitDecorExpr(DecorExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("@").append(expr.name);
+        if (expr.arguments != null && !expr.arguments.isEmpty()) {
+            sb.append("(");
+            for (int i = 0; i < expr.arguments.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(expr.arguments.get(i).accept(this));
+            }
+            sb.append(")");
+        }
         return sb.toString();
     }
     

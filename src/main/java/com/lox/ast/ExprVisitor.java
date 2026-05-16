@@ -2,6 +2,7 @@ package com.lox.ast;
 
 public interface ExprVisitor<T> {
     T visitLiteralExpr(LiteralExpr expr);
+    T visitDecorExpr(DecorExpr expr);
     T visitVarExpr(VarExpr expr);
     T visitAssignExpr(AssignExpr expr);
     T visitBinaryExpr(BinaryExpr expr);

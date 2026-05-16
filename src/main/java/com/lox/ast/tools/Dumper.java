@@ -107,10 +107,14 @@ public class Dumper implements ExprVisitor<String> {
     @Override
     public String visitVarDeclExpr(VarDeclExpr expr) {
         StringBuilder sb = new StringBuilder();
+        for (Expr d : expr.decorators) {
+            sb.append(d.accept(this)).append("\n");
+            sb.append(indentString());
+        }
         sb.append(indentString()).append("VarDeclExpr");
         sb.append(positionString(expr.getPosition()));
         sb.append(typeString(expr));
-        sb.append(": ").append(expr.isConst ? "const " : "var ").append(expr.name);
+        sb.append(": var ").append(expr.name);
         if (expr.value != null) {
             sb.append("\n");
             indent++;
@@ -127,7 +131,7 @@ public class Dumper implements ExprVisitor<String> {
         sb.append(indentString()).append("FunDeclExpr");
         sb.append(positionString(expr.getPosition()));
         sb.append(typeString(expr));
-        sb.append(": ").append(expr.isConst ? "const " : "").append("fun ");
+        sb.append(": fun ");
         sb.append(expr.name.isEmpty() ? "<anonymous>" : expr.name);
         sb.append("\n");
         
@@ -144,6 +148,24 @@ public class Dumper implements ExprVisitor<String> {
         
         dumpList(expr.getBody(), sb, "body");
         indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitDecorExpr(DecorExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("DecorExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": @").append(expr.name);
+        if (expr.arguments != null && !expr.arguments.isEmpty()) {
+            sb.append("(");
+            for (int i = 0; i < expr.arguments.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(expr.arguments.get(i).accept(this));
+            }
+            sb.append(")");
+        }
         return sb.toString();
     }
     

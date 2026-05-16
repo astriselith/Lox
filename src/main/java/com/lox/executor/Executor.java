@@ -20,103 +20,79 @@ public class Executor implements ExprVisitor<Value>, Callable {
 	}
 
 	private void defineBuiltins() {
-		global.declare("println", new FunctionValue(null, this, global) {
+		// println
+		FunctionValue println = new FunctionValue(null, this, global) {
 			@Override
 			public Value call(TableValue env, List<Value> arguments) {
 				System.out.println(arguments.get(0).toString());
 				return NullValue.INSTANCE;
 			}
-
+			
 			@Override
-			public int arity() {
-				return 1;
-			}
+			public int arity() { return 1; }
 			@Override
-			public boolean hasVarargs() {
-				return false;
-			}
+			public boolean hasVarargs() { return false; }
 			@Override
-			public int minArity() {
-				return 1;
-			}
+			public int minArity() { return 1; }
 			@Override
-			public String getName() {
-				return "println";
-			}
-		});
-
-		global.declare("print", new FunctionValue(null, this, global) {
+			public String getName() { return "println"; }
+		};
+		global.declare("println", println);
+		
+		// print
+		FunctionValue print = new FunctionValue(null, this, global) {
 			@Override
 			public Value call(TableValue env, List<Value> arguments) {
 				System.out.print(arguments.get(0).toString());
 				return NullValue.INSTANCE;
 			}
-
+			
 			@Override
-			public int arity() {
-				return 1;
-			}
+			public int arity() { return 1; }
 			@Override
-			public boolean hasVarargs() {
-				return false;
-			}
+			public boolean hasVarargs() { return false; }
 			@Override
-			public int minArity() {
-				return 1;
-			}
+			public int minArity() { return 1; }
 			@Override
-			public String getName() {
-				return "print";
-			}
-		});
-
-		global.declare("typeof", new FunctionValue(null, this, global) {
+			public String getName() { return "print"; }
+		};
+		global.declare("print", print);
+		
+		// typeof
+		FunctionValue typeof = new FunctionValue(null, this, global) {
 			@Override
 			public Value call(TableValue env, List<Value> arguments) {
 				return new StringValue(arguments.get(0).type());
 			}
-
+			
 			@Override
-			public int arity() {
-				return 1;
-			}
+			public int arity() { return 1; }
 			@Override
-			public boolean hasVarargs() {
-				return false;
-			}
+			public boolean hasVarargs() { return false; }
 			@Override
-			public int minArity() {
-				return 1;
-			}
+			public int minArity() { return 1; }
 			@Override
-			public String getName() {
-				return "typeof";
-			}
-		});
-
-		global.declare("sqrt", new FunctionValue(null, this, global) {
+			public String getName() { return "typeof"; }
+		};
+		global.declare("typeof", typeof);
+		
+		// sqrt
+		FunctionValue sqrt = new FunctionValue(null, this, global) {
 			@Override
 			public Value call(TableValue env, List<Value> arguments) {
 				return NumberValue.of(Math.sqrt(arguments.get(0).asNumber()));
 			}
-
+			
 			@Override
-			public int arity() {
-				return 1;
-			}
+			public int arity() { return 1; }
 			@Override
-			public boolean hasVarargs() {
-				return false;
-			}
+			public boolean hasVarargs() { return false; }
 			@Override
-			public int minArity() {
-				return 1;
-			}
+			public int minArity() { return 1; }
 			@Override
-			public String getName() {
-				return "sqrt";
-			}
-		});
+			public String getName() { return "sqrt"; }
+		};
+		global.declare("sqrt", sqrt);
 	}
 
 	private ThrowValue throwError(String message, Position position) {
@@ -306,12 +282,22 @@ public class Executor implements ExprVisitor<Value>, Callable {
 			if (val.isReturn() || val.isThrow()) return val;
 			value = val;
 		}
+		
+		// Processa os decorators
+		List<DecoratorValue> decoratorValues = new ArrayList<>();
+		for (Expr decor : expr.decorators) {
+			Value decorResult = decor.accept(this);
+			if (decorResult.isReturn() || decorResult.isThrow()) return decorResult;
+			
+			if (!(decorResult instanceof DecoratorValue)) {
+				return throwError("Decorator deve retornar um DecoratorValue", expr.getPosition());
+			}
+			
+			decoratorValues.add((DecoratorValue) decorResult);
+		}
 
 		try {
-			if (expr.isConst) {
-				value.setConst(true);
-			}
-			current.declare(expr.name, value);
+			current.declare(expr.name, value, decoratorValues);
 			return value;
 		} catch (RuntimeException e) {
 			return throwError(e.getMessage(), expr.getPosition());
@@ -328,6 +314,38 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		} catch (RuntimeException e) {
 			return throwError(e.getMessage(), expr.getPosition());
 		}
+	}
+
+	@Override
+	public Value visitDecorExpr(DecorExpr expr) {
+		// Obtém a função decorator do escopo atual
+		Value decorFunc = current.get(expr.name);
+		if (decorFunc.isThrow()) return decorFunc;
+		
+		if (!decorFunc.isFunction()) {
+			return throwError("Decorator '" + expr.name + "' não é uma função", expr.getPosition());
+		}
+		
+		// Avalia os argumentos
+		List<Value> args = new ArrayList<>();
+		if (expr.arguments != null) {
+			for (Expr arg : expr.arguments) {
+				Value argVal = arg.accept(this);
+				if (argVal.isReturn() || argVal.isThrow()) return argVal;
+				args.add(argVal);
+			}
+		}
+		
+		// Chama a função decorator, que deve retornar uma tabela
+		Value result = decorFunc.asFunction().call(current, args);
+		if (result.isReturn() || result.isThrow()) return result;
+		
+		if (!result.isTable()) {
+			return throwError("Decorator '" + expr.name + "' deve retornar uma tabela", expr.getPosition());
+		}
+		
+		// Cria e retorna um DecoratorValue usando of()
+		return DecoratorValue.of(result.asTable());
 	}
 
 	@Override
@@ -466,23 +484,19 @@ public class Executor implements ExprVisitor<Value>, Callable {
 	public Value visitBinaryExpr(BinaryExpr expr) {
 		String op = expr.operator;
 
-		// Null coalescing operator (??)
 		if (op.equals("??")) {
 			Value left = expr.left.accept(this);
 			if (left.isReturn() || left.isThrow()) return left;
 
-			// Se left não é null, retorna left
 			if (!left.isNull()) {
 				return left;
 			}
 
-			// Caso contrário, avalia e retorna o right
 			Value right = expr.right.accept(this);
 			if (right.isReturn() || right.isThrow()) return right;
 			return right;
 		}
 
-		// Para os outros operadores, avalia ambos os lados
 		Value left = expr.left.accept(this);
 		if (left.isReturn() || left.isThrow()) return left;
 

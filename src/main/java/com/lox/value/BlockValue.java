@@ -18,12 +18,6 @@ public class BlockValue extends TableValue {
     }
     
     @Override
-    public boolean isBlock() { return true; }
-    
-    @Override
-    public BlockValue asBlock() { return this; }
-    
-    @Override
     public String type() { return "block"; }
     
     @Override

@@ -65,7 +65,7 @@ public class Token {
 
 	public boolean isKeyword() {
 		return type == Type.VAR || type == Type.FUN ||
-			   type == Type.RETURN || type == Type.CONST || type == Type.THROW ||
+			   type == Type.RETURN || type == Type.THROW ||
 			   type == Type.IF || type == Type.ELSE || type == Type.WHILE ||
 			   type == Type.BREAK || type == Type.CONTINUE;
 	}
@@ -111,7 +111,7 @@ public class Token {
 		return type == Type.LPAREN || type == Type.RPAREN || type == Type.LBRACE ||
 			   type == Type.RBRACE || type == Type.LBRACKET || type == Type.RBRACKET ||
 			   type == Type.COMMA || type == Type.DOT || type == Type.SEMICOLON ||
-			   type == Type.COLON;
+			   type == Type.COLON || type == Type.AT;
 	}
 
 	public boolean isClosing() {

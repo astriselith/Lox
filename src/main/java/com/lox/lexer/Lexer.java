@@ -20,7 +20,6 @@ public class Lexer extends TokenStream {
 	static {
 		keywords.put("var", Pair.of(Type.VAR, "var"));
 		keywords.put("fun", Pair.of(Type.FUN, "fun"));
-		keywords.put("const", Pair.of(Type.CONST, "const"));
 		keywords.put("if", Pair.of(Type.IF, "if"));
 		keywords.put("else", Pair.of(Type.ELSE, "else"));
 		keywords.put("while", Pair.of(Type.WHILE, "while"));
@@ -35,7 +34,6 @@ public class Lexer extends TokenStream {
 		keywords.put("let", Pair.of(Type.VAR, "var"));
 		keywords.put("func", Pair.of(Type.FUN, "fun"));
 		keywords.put("function", Pair.of(Type.FUN, "fun"));
-		keywords.put("constant", Pair.of(Type.CONST, "const"));
 		keywords.put("nil", Pair.of(Type.NULL, "null"));
 		keywords.put("none", Pair.of(Type.NULL, "null"));
 
@@ -197,7 +195,7 @@ public class Lexer extends TokenStream {
 			} else {
 				return token(Type.QUESTION, "?");
 			}
-			
+
 		case '(':
 			return token(Type.LPAREN, "(");
 		case ')':
@@ -212,11 +210,13 @@ public class Lexer extends TokenStream {
 			return token(Type.RBRACKET, "]");
 		case ',':
 			return token(Type.COMMA, ",");
-		case ';':
-			return token(Type.SEMICOLON, ";");
 		case ':':
 			return token(Type.COLON, ":");
-
+		case '@':
+			return token(Type.AT, "@");
+		case ';':
+			return token(Type.SEMICOLON, ";");
+			
 		case '.':
 			if (check('.') && checkNext('.')) {
 				advanceChar();

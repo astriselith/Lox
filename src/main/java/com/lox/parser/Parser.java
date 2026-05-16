@@ -14,8 +14,6 @@ public class Parser {
 	private static final String ERR_VAR = "Esperado 'var'";
 	private static final String ERR_FUN = "Esperado 'fun'";
 	private static final String ERR_NAME = "Esperado nome";
-	private static final String ERR_CONST = "Esperado 'var', 'fun' ou nome após 'const'";
-	private static final String ERR_AFTER_ID = "Esperado '(', '=', ';' ou '->' após identificador";
 	private static final String ERR_LPAREN = "Esperado '('";
 	private static final String ERR_RPAREN = "Esperado ')'";
 	private static final String ERR_COLON = "Esperado ':'";
@@ -33,10 +31,15 @@ public class Parser {
 	private static final String ERR_BREAK_OUTSIDE = "'break' só pode ser usado dentro de loop";
 	private static final String ERR_CONTINUE_OUTSIDE = "'continue' só pode ser usado dentro de loop";
 	private static final String ERR_EXPECTED_SEMICOLON = "Esperado ';'";
-	private static final String ERR_BLOCK_TABLE = "Bloco tabela só pode conter declarações (var, const, fun)";
+	private static final String ERR_BLOCK_TABLE = "Bloco tabela só pode conter declarações (var, fun)";
 	private static final String ERR_LAMBDA_ARROW = "Lambda sem parênteses requer '->' antes do corpo";
 	private static final String ERR_INVALID_STMT_EXPR = "Expressão não pode ser usada como statement. Apenas atribuições, chamadas de função e incrementos/decrementos são permitidos";
 	private static final String ERR_INVALID_UNARY_STMT = "Operador unário '%s' não pode ser usado como statement";
+	private static final String ERR_DECOR_NAME = "Esperado nome do decorator após '@'";
+	private static final String ERR_DECOR_FUNCTION = "Funções não podem ter decoradores";
+	private static final String ERR_DECOR_AT = "Esperado '@'";
+	private static final String ERR_DECOR_VAR = "Esperado 'var' após decorator";
+	private static final String ERR_ARROW_DECL = "Declarações não são permitidas em arrow body";
 
 	private final TokenStream stream;
 	private FunDeclExpr currentFunction = null;
@@ -141,7 +144,7 @@ public class Parser {
 		List<Expr> declarations = new ArrayList<>();
 
 		while (!stream.isAtEnd() && !stream.check(Type.RBRACE)) {
-			if (stream.checkAny(Type.CONST, Type.VAR, Type.FUN)) {
+			if (stream.checkAny(Type.VAR, Type.FUN)) {
 				declarations.add(decl());
 			} else {
 				throw error(ERR_BLOCK_TABLE, stream.peek());
@@ -154,33 +157,51 @@ public class Parser {
 		return new BlockExpr(declarations, between(start, end));
 	}
 
-	private Expr decl() {
-		if (stream.check(Type.CONST)) {
-			if (stream.checkNextAny(Type.VAR, Type.FUN)) {
-				if (stream.checkNext(Type.VAR)) return varDecl();
-				if (stream.checkNext(Type.FUN)) return funDecl();
-			}
-
-			if (stream.checkNext(Type.IDENTIFIER)) {
-				if (stream.checkNextNextAny(Type.LPAREN, Type.ARROW)) return funDecl();
-				if (stream.checkNextNextAny(Type.EQ, Type.SEMICOLON)) return varDecl();
-				throw error(ERR_AFTER_ID, stream.peekNext());
-			}
-
-			throw error(ERR_CONST, stream.peekNextNext());
+	private DecorExpr decor() {
+		if (!stream.match(Type.AT)) throw error(ERR_DECOR_AT);
+		
+		Token atToken = stream.previous();
+		
+		if (!stream.check(Type.IDENTIFIER)) {
+			throw error(ERR_DECOR_NAME, atToken);
 		}
-
-		if (stream.check(Type.VAR)) return varDecl();
-		if (stream.check(Type.FUN)) return funDecl();
-
-		throw error("Erro interno: decl() chamado sem const, var ou fun");
+		
+		Token nameToken = stream.advance();
+		List<Expr> args = null;
+		
+		if (stream.check(Type.LPAREN)) {
+			args = arguments();
+		}
+		
+		return new DecorExpr(nameToken.lexeme, args, between(atToken, nameToken));
 	}
 
-	private Expr varDecl() {
-		Token start = stream.peek();
-		boolean isConst = stream.match(Type.CONST);
+	private Expr decl() {
+		List<DecorExpr> decorators = new ArrayList<>();
+		
+		while (stream.check(Type.AT)) {
+			decorators.add(decor());
+		}
+		
+		if (stream.check(Type.VAR)) return varDecl(decorators);
+		if (stream.check(Type.FUN)) {
+			if (!decorators.isEmpty()) {
+				throw error(ERR_DECOR_FUNCTION, stream.peek());
+			}
+			return funDecl();
+		}
+		
+		if (!decorators.isEmpty()) {
+			throw error(ERR_DECOR_VAR);
+		}
+		
+		throw error("Erro interno: decl() chamado sem var ou fun");
+	}
 
-		if (!stream.match(Type.VAR) && !isConst) throw error(ERR_VAR);
+	private Expr varDecl(List<DecorExpr> decorators) {
+		Token start = stream.peek();
+
+		if (!stream.match(Type.VAR)) throw error(ERR_VAR);
 
 		Token name;
 		if (stream.check(Type.IDENTIFIER)) {
@@ -199,16 +220,15 @@ public class Parser {
 		return new VarDeclExpr(
 				   name.lexeme,
 				   value,
-				   isConst,
+				   decorators,
 				   between(start, stream.previous())
 			   );
 	}
 
 	private Expr funDecl() {
 		Token start = stream.peek();
-		boolean isConst = stream.match(Type.CONST);
 
-		if (!stream.match(Type.FUN) && !isConst) throw error(ERR_FUN);
+		if (!stream.match(Type.FUN)) throw error(ERR_FUN);
 		if (!stream.check(Type.IDENTIFIER)) throw error(ERR_NAME);
 
 		Token nameToken = stream.advance();
@@ -222,8 +242,7 @@ public class Parser {
 		FunDeclExpr f = new FunDeclExpr(
 			name,
 			params != null ? params.getFirst() : null,
-			new ArrayList<>(),
-			isConst,
+			null,
 			params != null && params.getSecond(),
 			null
 		);
@@ -231,8 +250,7 @@ public class Parser {
 		currentFunction = f;
 
 		if (stream.match(Type.ARROW)) {
-			Expr body = expr();
-			semicolon();
+			Expr body = arrowBody();
 			List<Expr> bodyList = new ArrayList<>();
 			bodyList.add(body);
 			f.setBody(bodyList);
@@ -269,7 +287,6 @@ public class Parser {
 			null,
 			params.getFirst(),
 			new ArrayList<>(),
-			false,
 			params.getSecond(),
 			null
 		);
@@ -280,7 +297,7 @@ public class Parser {
 		if (!hasParens && !hasArrow) throw error(ERR_LAMBDA_ARROW);
 
 		if (hasArrow) {
-			Expr body = expr();
+			Expr body = arrowBody();
 			List<Expr> bodyList = new ArrayList<>();
 			bodyList.add(body);
 			lambda.setBody(bodyList);
@@ -300,10 +317,42 @@ public class Parser {
 		return lambda;
 	}
 
+	private Expr arrowBody() {
+		if (stream.check(Type.LBRACE)) {
+			// Corpo em bloco
+			List<Expr> bodyList = body();
+			if (bodyList.size() == 1) {
+				return bodyList.get(0);
+			}
+			return new BlockExpr(bodyList, between(bodyList));
+		} else {
+			// Corpo de uma única statement (sem declarações)
+			return noDecl();
+		}
+	}
+
+	private Expr noDecl() {
+		Token t = stream.peek();
+
+		if (t.type == Type.IF) return ifStmt();
+		if (t.type == Type.WHILE) return whileStmt();
+		if (t.isBreak()) return breakStmt();
+		if (t.isContinue()) return continueStmt();
+		if (t.isReturn()) return returnStmt();
+		if (t.isThrow()) return throwStmt();
+		
+		// Impede declarações
+		if (t.type == Type.VAR || t.type == Type.FUN) {
+			throw error(ERR_ARROW_DECL, t);
+		}
+
+		return exprStmt();
+	}
+
 	private Expr stmt() {
 		Token t = stream.peek();
 
-		if (t.type == Type.CONST || t.type == Type.VAR || t.type == Type.FUN) {
+		if (t.type == Type.AT || t.type == Type.VAR || t.type == Type.FUN) {
 			return decl();
 		}
 
@@ -331,7 +380,7 @@ public class Parser {
 			thenBranch = body();
 		} else {
 			thenBranch = new ArrayList<>();
-			thenBranch.add(stmt());
+			thenBranch.add(noDecl());
 		}
 
 		List<Expr> elseBranch = null;
@@ -341,7 +390,7 @@ public class Parser {
 				elseBranch = body();
 			} else {
 				elseBranch = new ArrayList<>();
-				elseBranch.add(stmt());
+				elseBranch.add(noDecl());
 			}
 		}
 
@@ -369,7 +418,7 @@ public class Parser {
 			bodyList = body();
 		} else {
 			bodyList = new ArrayList<>();
-			bodyList.add(stmt());
+			bodyList.add(noDecl());
 		}
 
 		loopDepth--;

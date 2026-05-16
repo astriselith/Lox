@@ -1,0 +1,30 @@
+fun readonly() {
+	return {
+		fun init(value) -> return value;
+		fun write(currentValue, newValue)  ->  return currentValue;
+	};
+}
+
+fun range(min,  max) {
+	return {
+		fun clamp(val) {
+			if (val < min) return min;
+			if (val > max) return max;
+			return val;
+		}
+
+		fun init(initialValue) -> return clamp(initialValue);
+		fun write(currentValue, newValue) -> return clamp(newValue);
+	};
+}
+@readonly
+var i = 0;
+i = 100;
+
+@range(0, 100)
+var j = 0;
+
+j = 500;
+
+println(i);
+println(j);

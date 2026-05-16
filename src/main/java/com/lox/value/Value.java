@@ -1,8 +1,6 @@
 package com.lox.value;
 
 public abstract class Value {
-	protected boolean isConst = false;
-
 	public abstract String type();
 	public abstract boolean truthy();
 
@@ -28,17 +26,23 @@ public abstract class Value {
 	public boolean isFunction() {
 		return false;
 	}
-	public boolean isBlock() {
-		return false;
-	}
 	public boolean isReturn() {
 		return false;
 	}
 	public boolean isThrow() {
 		return false;
 	}
+	public boolean isBreak() {
+		return false;
+	}
+	public boolean isContinue() {
+		return false;
+	}
+	public boolean isDecorator() {
+		return false;
+	}
 
-	// Métodos de acesso para tipos específicos (lançam exceção se tipo incorreto)
+	// Métodos de acesso para tipos específicos
 	public double asNumber() {
 		throw new RuntimeException("Não é um número");
 	}
@@ -57,66 +61,25 @@ public abstract class Value {
 	public FunctionValue asFunction() {
 		throw new RuntimeException("Não é uma função");
 	}
-	public BlockValue asBlock() {
-		throw new RuntimeException("Não é um bloco");
-	}
 	public ReturnValue asReturn() {
 		throw new RuntimeException("Não é um return");
 	}
 	public ThrowValue asThrow() {
 		throw new RuntimeException("Não é um throw");
 	}
-
-	// No Value.java, adicione estes métodos:
-
-	public boolean isBreak() {
-		return false;
-	}
-	public boolean isContinue() {
-		return false;
-	}
-
 	public BreakValue asBreak() {
 		throw new RuntimeException("Não é um break");
 	}
 	public ContinueValue asContinue() {
 		throw new RuntimeException("Não é um continue");
 	}
-
-	public boolean isConst() {
-		return isConst;
-	}
-
-	public void setConst(boolean isConst) {
-		this.isConst = isConst;
-	}
-
-	public void freeze() {
-		// Default implementation
-	}
-
-	public void unfreeze() {
-		// Default implementation
-	}
-
-	public boolean isFrozen() {
-		return false;
-	}
-
-	public void lock() {
-		// Default implementation
-	}
-
-	public void unlock() {
-		// Default implementation
-	}
-
-	public boolean isLocked() {
-		return false;
+	public DecoratorValue asDecorator() {
+		throw new RuntimeException("Não é um decorator");
 	}
 
 	@Override
 	public abstract String toString();
+	
 	@Override
 	public abstract boolean equals(Object obj);
 }

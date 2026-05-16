@@ -24,7 +24,8 @@ public class ArrayValue extends TableValue {
     
     private void init() {
         declare("length", NumberValue.of(elements.size()));
-        declare("add", new FunctionValue(null, null, null) {
+        
+        FunctionValue addFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 add(arguments.get(0));
@@ -33,8 +34,16 @@ public class ArrayValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
-        declare("remove", new FunctionValue(null, null, null) {
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "add"; }
+        };
+        declare("add", addFunc);
+        
+        FunctionValue removeFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 if (elements.isEmpty()) return NullValue.INSTANCE;
@@ -43,8 +52,16 @@ public class ArrayValue extends TableValue {
             
             @Override
             public int arity() { return 0; }
-        });
-        declare("filter", new FunctionValue(null, null, null) {
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 0; }
+            @Override
+            public String getName() { return "remove"; }
+        };
+        declare("remove", removeFunc);
+        
+        FunctionValue filterFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 Value callback = arguments.get(0);
@@ -67,8 +84,16 @@ public class ArrayValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
-        declare("join", new FunctionValue(null, null, null) {
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "filter"; }
+        };
+        declare("filter", filterFunc);
+        
+        FunctionValue joinFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 String separator = arguments.get(0).toString();
@@ -82,8 +107,16 @@ public class ArrayValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
-        declare("contains", new FunctionValue(null, null, null) {
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "join"; }
+        };
+        declare("join", joinFunc);
+        
+        FunctionValue containsFunc = new FunctionValue(null, null, null) {
             @Override
             public Value call(TableValue env, List<Value> arguments) {
                 Value search = arguments.get(0);
@@ -97,22 +130,22 @@ public class ArrayValue extends TableValue {
             
             @Override
             public int arity() { return 1; }
-        });
-        lock();
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "contains"; }
+        };
+        declare("contains", containsFunc);
     }
     
     public void add(Value value) {
-        if (isFrozen()) {
-            throw new RuntimeException("Array está congelado, não pode ser modificado");
-        }
         elements.add(value);
         set("length", NumberValue.of(elements.size()));
     }
     
     public Value remove() {
-        if (isFrozen()) {
-            throw new RuntimeException("Array está congelado, não pode ser modificado");
-        }
         if (elements.isEmpty()) return NullValue.INSTANCE;
         Value removed = elements.remove(elements.size() - 1);
         set("length", NumberValue.of(elements.size()));
@@ -135,9 +168,6 @@ public class ArrayValue extends TableValue {
     }
     
     public void set(int index, Value value) {
-        if (isFrozen()) {
-            throw new RuntimeException("Array está congelado, não pode ser modificado");
-        }
         if (index < 0 || index >= elements.size()) {
             throw new RuntimeException("Índice fora dos limites: " + index);
         }

@@ -1,10 +1,10 @@
-const var GLOBAL = 100;
+var GLOBAL = 100;
 
 fun add(a, b) {
     return a + b;
 }
 
-const fun mul(a, b) ->
+fun mul(a, b) ->
     a * b;
 
 fun variadic(...args) {
