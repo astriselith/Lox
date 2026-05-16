@@ -1,85 +1,83 @@
 package com.lox.value;
 
 public abstract class Value {
-	public abstract String type();
-	public abstract boolean truthy();
+ public abstract String type();
+ public abstract boolean truthy();
 
-	// Métodos de verificação de tipo
-	public boolean isNumber() {
+ // Métodos de verificação de tipo
+ public boolean isNumber() {
 		return false;
-	}
-	public boolean isString() {
+ }
+ public boolean isString() {
 		return false;
-	}
-	public boolean isBoolean() {
+ }
+ public boolean isBoolean() {
 		return false;
-	}
-	public boolean isNull() {
+ }
+ public boolean isNull() {
 		return false;
-	}
-	public boolean isTable() {
+ }
+ public boolean isTable() {
 		return false;
-	}
-	public boolean isArray() {
+ }
+ public boolean isArray() {
 		return false;
-	}
-	public boolean isFunction() {
+ }
+ public boolean isFunction() {
 		return false;
-	}
-	public boolean isReturn() {
+ }
+ public boolean isReturn() {
 		return false;
-	}
-	public boolean isThrow() {
+ }
+ public boolean isThrow() {
 		return false;
-	}
-	public boolean isBreak() {
+ }
+ public boolean isBreak() {
 		return false;
-	}
-	public boolean isContinue() {
+ }
+ public boolean isContinue() {
 		return false;
-	}
-	public boolean isDecorator() {
+ }
+ public boolean isDecorator() {
 		return false;
-	}
+ }
 
-	// Métodos de acesso para tipos específicos
-	public double asNumber() {
+ // Métodos de acesso para tipos específicos
+ public double asNumber() {
 		throw new RuntimeException("Não é um número");
-	}
-	public String asString() {
+ }
+ public String asString() {
 		throw new RuntimeException("Não é uma string");
-	}
-	public boolean asBoolean() {
+ }
+ public boolean asBoolean() {
 		throw new RuntimeException("Não é um booleano");
-	}
-	public TableValue asTable() {
+ }
+ public TableValue asTable() {
 		throw new RuntimeException("Não é uma tabela");
-	}
-	public ArrayValue asArray() {
+ }
+ public ArrayValue asArray() {
 		throw new RuntimeException("Não é um array");
-	}
-	public FunctionValue asFunction() {
+ }
+ public FunctionValue asFunction() {
 		throw new RuntimeException("Não é uma função");
-	}
-	public ReturnValue asReturn() {
+ }
+ public ReturnValue asReturn() {
 		throw new RuntimeException("Não é um return");
-	}
-	public ThrowValue asThrow() {
+ }
+ public ThrowValue asThrow() {
 		throw new RuntimeException("Não é um throw");
-	}
-	public BreakValue asBreak() {
+ }
+ public BreakValue asBreak() {
 		throw new RuntimeException("Não é um break");
-	}
-	public ContinueValue asContinue() {
+ }
+ public ContinueValue asContinue() {
 		throw new RuntimeException("Não é um continue");
-	}
-	public DecoratorValue asDecorator() {
+ }
+ public DecoratorValue asDecorator() {
 		throw new RuntimeException("Não é um decorator");
-	}
+ }
 
-	@Override
-	public abstract String toString();
-	
-	@Override
-	public abstract boolean equals(Object obj);
+ @Override public abstract String toString();
+
+ @Override public abstract boolean equals(Object obj);
 }
