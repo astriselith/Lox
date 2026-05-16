@@ -11,9 +11,4 @@ public class IndexGetExpr extends Expr {
         this.array = array;
         this.index = index;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitIndexGetExpr(this);
-    }
 }

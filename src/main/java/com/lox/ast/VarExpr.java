@@ -9,9 +9,4 @@ public class VarExpr extends Expr {
         super(position);
         this.name = name;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitVarExpr(this);
-    }
 }

@@ -14,9 +14,4 @@ public class IfExpr extends Expr {
         this.thenBranch = thenBranch;
         this.elseBranch = elseBranch;
     }
-    
-    @Override
-    public <R> R accept(ExprVisitor<R> visitor) {
-        return visitor.visitIfExpr(this);
-    }
 }

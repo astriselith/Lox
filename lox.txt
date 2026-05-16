@@ -1,0 +1,5756 @@
+package com.lox.lexer;
+
+import java.util.HashMap;
+import java.util.Map;
+
+import com.lox.token.*;
+import com.lox.util.Pair;
+import com.lox.util.Position;
+
+public class Lexer extends TokenStream {
+	private final String source;
+	private int current = 0;
+	private int line = 1;
+	private int lineStart = 0;
+	private int start = 0;
+	private boolean eofReached = false;
+
+	private static final Map<String, Pair<Type, String>> keywords = new HashMap<>();
+
+	static {
+		keywords.put("var", Pair.of(Type.VAR, "var"));
+		keywords.put("fun", Pair.of(Type.FUN, "fun"));
+		keywords.put("if", Pair.of(Type.IF, "if"));
+		keywords.put("else", Pair.of(Type.ELSE, "else"));
+		keywords.put("while", Pair.of(Type.WHILE, "while"));
+		keywords.put("break", Pair.of(Type.BREAK, "break"));
+		keywords.put("continue", Pair.of(Type.CONTINUE, "continue"));
+		keywords.put("return", Pair.of(Type.RETURN, "return"));
+		keywords.put("throw", Pair.of(Type.THROW, "throw"));
+		keywords.put("true", Pair.of(Type.BOOLEAN, "true"));
+		keywords.put("false", Pair.of(Type.BOOLEAN, "false"));
+		keywords.put("null", Pair.of(Type.NULL, "null"));
+
+		keywords.put("let", Pair.of(Type.VAR, "var"));
+		keywords.put("func", Pair.of(Type.FUN, "fun"));
+		keywords.put("function", Pair.of(Type.FUN, "fun"));
+		keywords.put("nil", Pair.of(Type.NULL, "null"));
+		keywords.put("none", Pair.of(Type.NULL, "null"));
+
+		keywords.put("and", Pair.of(Type.AND_AND, "&&"));
+		keywords.put("or", Pair.of(Type.OR_OR, "||"));
+		keywords.put("not", Pair.of(Type.NOT, "!"));
+
+		keywords.put("eq", Pair.of(Type.EQ_EQ, "=="));
+		keywords.put("neq", Pair.of(Type.NOT_EQ, "!="));
+		keywords.put("lt", Pair.of(Type.LT, "<"));
+		keywords.put("gt", Pair.of(Type.GT, ">"));
+		keywords.put("lte", Pair.of(Type.LTE, "<="));
+		keywords.put("gte", Pair.of(Type.GTE, ">="));
+
+		keywords.put("inc", Pair.of(Type.PLUS_PLUS, "++"));
+		keywords.put("dec", Pair.of(Type.MINUS_MINUS, "--"));
+	}
+
+	public Lexer(String source) {
+		super();
+		this.source = source;
+	}
+
+	@Override
+	protected Token fetchNextToken() {
+		try {
+			if (eofReached) {
+				int column = current - lineStart + 1;
+				return Token.eof(line, column, current, current);
+			}
+
+			// Pula whitespace e comentários antes de cada token
+			skipWhitespace();
+
+			if (isAtEndChar()) {
+				eofReached = true;
+				int column = current - lineStart + 1;
+				return Token.eof(line, column, current, current);
+			}
+
+			start = current;
+			Token token = scan();
+			return token;
+		} catch (LexingException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new LexingException("Erro durante lexing: " + e.getMessage(), getCurrentPosition(), e);
+		}
+	}
+
+	private void skipWhitespace() {
+		while (!isAtEndChar()) {
+			char c = peekChar();
+
+			switch (c) {
+			case ' ':
+			case '\r':
+			case '\t':
+				advanceChar();
+				break;
+
+			case '\n':
+				advanceChar();
+				line++;
+				lineStart = current;
+				break;
+
+			case '/':
+				if (peekNextChar() == '/') {
+					// Comentário de linha
+					while (!isAtEndChar() && peekChar() != '\n') {
+						advanceChar();
+					}
+				} else if (peekNextChar() == '*') {
+					// Comentário de múltiplas linhas
+					advanceChar();
+					advanceChar();
+
+					while (!isAtEndChar()) {
+						if (peekChar() == '\n') {
+							advanceChar();
+							line++;
+							lineStart = current;
+							continue;
+						}
+
+						if (peekChar() == '*' && peekNextChar() == '/') {
+							advanceChar();
+							advanceChar();
+							break;
+						}
+
+						advanceChar();
+					}
+				} else {
+					return;
+				}
+				break;
+
+			default:
+				return;
+			}
+		}
+	}
+
+	private Position getCurrentPosition() {
+		int column = start - lineStart + 1;
+		return new Position(line, column, start, current);
+	}
+
+	private Token scan() {
+		char c = advanceChar();
+
+		switch (c) {
+		case '+':
+			if (matchChar('+')) {
+				return token(Type.PLUS_PLUS, "++");
+			} else if (matchChar('=')) {
+				return token(Type.PLUS_EQ, "+=");
+			} else {
+				return token(Type.PLUS, "+");
+			}
+
+		case '-':
+			if (matchChar('-')) {
+				return token(Type.MINUS_MINUS, "--");
+			} else if (matchChar('=')) {
+				return token(Type.MINUS_EQ, "-=");
+			} else if (matchChar('>')) {
+				return token(Type.ARROW, "->");
+			} else {
+				return token(Type.MINUS, "-");
+			}
+
+		case '*':
+			if (matchChar('=')) {
+				return token(Type.STAR_EQ, "*=");
+			} else {
+				return token(Type.STAR, "*");
+			}
+
+		case '/':
+			if (matchChar('=')) {
+				return token(Type.SLASH_EQ, "/=");
+			} else {
+				return token(Type.SLASH, "/");
+			}
+
+		case '%':
+			if (matchChar('=')) {
+				return token(Type.PERCENT_EQ, "%=");
+			} else {
+				return token(Type.PERCENT, "%");
+			}
+
+		case '?':
+			if (matchChar('?')) {
+				return token(Type.QUESTION_QUESTION, "??");
+			} else {
+				return token(Type.QUESTION, "?");
+			}
+
+		case '(':
+			return token(Type.LPAREN, "(");
+		case ')':
+			return token(Type.RPAREN, ")");
+		case '{':
+			return token(Type.LBRACE, "{");
+		case '}':
+			return token(Type.RBRACE, "}");
+		case '[':
+			return token(Type.LBRACKET, "[");
+		case ']':
+			return token(Type.RBRACKET, "]");
+		case ',':
+			return token(Type.COMMA, ",");
+		case ':':
+			return token(Type.COLON, ":");
+		case '@':
+			return token(Type.AT, "@");
+		case ';':
+			return token(Type.SEMICOLON, ";");
+			
+		case '.':
+			if (check('.') && checkNext('.')) {
+				advanceChar();
+				advanceChar();
+				return token(Type.ELLIPSIS, "...");
+			} else {
+				return token(Type.DOT, ".");
+			}
+
+		case '<':
+			if (matchChar('=')) {
+				return token(Type.LTE, "<=");
+			} else if (matchChar('<')) {
+				if (matchChar('=')) {
+					return token(Type.AND_EQ, "<<=");
+				} else {
+					return token(Type.AND, "<<");
+				}
+			} else {
+				return token(Type.LT, "<");
+			}
+
+		case '>':
+			if (matchChar('=')) {
+				return token(Type.GTE, ">=");
+			} else if (matchChar('>')) {
+				if (matchChar('=')) {
+					return token(Type.OR_EQ, ">>=");
+				} else {
+					return token(Type.OR, ">>");
+				}
+			} else {
+				return token(Type.GT, ">");
+			}
+
+		case '!':
+			if (matchChar('=')) {
+				return token(Type.NOT_EQ, "!=");
+			} else {
+				return token(Type.NOT, "!");
+			}
+
+		case '=':
+			if (matchChar('=')) {
+				return token(Type.EQ_EQ, "==");
+			} else {
+				return token(Type.EQ, "=");
+			}
+
+		case '&':
+			if (matchChar('&')) {
+				return token(Type.AND_AND, "&&");
+			} else if (matchChar('=')) {
+				return token(Type.AND_EQ, "&=");
+			} else {
+				return token(Type.AND, "&");
+			}
+
+		case '|':
+			if (matchChar('|')) {
+				return token(Type.OR_OR, "||");
+			} else if (matchChar('=')) {
+				return token(Type.OR_EQ, "|=");
+			} else {
+				return token(Type.OR, "|");
+			}
+
+		case '"':
+			return multilineString();
+
+		case '\'':
+			return singlelineString();
+
+		default:
+			if (isDigit(c)) {
+				return number();
+			} else if (isAlpha(c)) {
+				return identifier();
+			} else {
+				throw new LexingException("Caractere inesperado: '" + c + "'", getCurrentPosition());
+			}
+		}
+	}
+
+	private Token identifier() {
+		while (isAlphaNumeric(peekChar())) advanceChar();
+
+		String text = source.substring(start, current);
+		Pair<Type, String> keyword = keywords.get(text);
+
+		if (keyword != null) {
+			Type type = keyword.getFirst();
+			String lexeme = keyword.getSecond();
+
+			if (type == Type.BOOLEAN) {
+				return token(type, lexeme, Boolean.parseBoolean(text));
+			} else if (type == Type.NULL) {
+				return token(type, lexeme, null);
+			} else {
+				return token(type, lexeme);
+			}
+		} else {
+			return token(Type.IDENTIFIER, text);
+		}
+	}
+
+	private Token number() {
+		while (isDigit(peekChar())) advanceChar();
+
+		if (peekChar() == '.' && isDigit(peekNextChar())) {
+			advanceChar();
+			while (isDigit(peekChar())) advanceChar();
+		}
+
+		try {
+			double value = Double.parseDouble(source.substring(start, current));
+			return token(Type.NUMBER, String.valueOf(value), value);
+		} catch (NumberFormatException e) {
+			throw new LexingException("Número inválido: " + source.substring(start, current), getCurrentPosition(), e);
+		}
+	}
+
+	private Token singlelineString() {
+		while (peekChar() != '\'' && !isAtEndChar()) {
+			if (peekChar() == '\n') {
+				throw new LexingException("String com aspas simples não pode conter quebra de linha", getCurrentPosition());
+			}
+			advanceChar();
+		}
+
+		if (isAtEndChar()) {
+			throw new LexingException("String com aspas simples não terminada", getCurrentPosition());
+		}
+
+		advanceChar();
+
+		String value = source.substring(start + 1, current - 1);
+		return token(Type.STRING, "'" + value + "'", value);
+	}
+
+	private Token multilineString() {
+		while (peekChar() != '"' && !isAtEndChar()) {
+			if (peekChar() == '\n') {
+				line++;
+				lineStart = current + 1;
+			}
+			advanceChar();
+		}
+
+		if (isAtEndChar()) {
+			throw new LexingException("String com aspas duplas não terminada", getCurrentPosition());
+		}
+
+		advanceChar();
+
+		String value = source.substring(start + 1, current - 1);
+		return token(Type.STRING, "\"" + value + "\"", value);
+	}
+
+	private boolean check(char expected) {
+		if (isAtEndChar()) return false;
+		return source.charAt(current) == expected;
+	}
+
+	private boolean checkNext(char expected) {
+		if (current + 1 >= source.length()) return false;
+		return source.charAt(current + 1) == expected;
+	}
+
+	private boolean matchChar(char expected) {
+		if (isAtEndChar()) return false;
+		if (source.charAt(current) != expected) return false;
+		current++;
+		return true;
+	}
+
+	private char peekChar() {
+		if (isAtEndChar()) return '\0';
+		return source.charAt(current);
+	}
+
+	private char peekNextChar() {
+		if (current + 1 >= source.length()) return '\0';
+		return source.charAt(current + 1);
+	}
+
+	private boolean isAlpha(char c) {
+		return (c >= 'a' && c <= 'z') ||
+			   (c >= 'A' && c <= 'Z') ||
+			   c == '_';
+	}
+
+	private boolean isAlphaNumeric(char c) {
+		return isAlpha(c) || isDigit(c);
+	}
+
+	private boolean isDigit(char c) {
+		return c >= '0' && c <= '9';
+	}
+
+	private boolean isAtEndChar() {
+		return current >= source.length();
+	}
+
+	private char advanceChar() {
+		return source.charAt(current++);
+	}
+
+	private Token token(Type type) {
+		return token(type, null, null);
+	}
+
+	private Token token(Type type, String lexeme) {
+		return token(type, lexeme, null);
+	}
+
+	private Token token(Type type, String lexeme, Object literal) {
+		String text = lexeme != null ? lexeme : source.substring(start, current);
+		int column = start - lineStart + 1;
+		return Token.of(type, text, literal, line, column, start, current);
+	}
+}package com.lox.lexer;
+
+import com.lox.util.Position;
+
+public class LexingException extends RuntimeException {
+    private final Position position;
+    
+    public LexingException(String message, Position position) {
+        super(formatMessage(message, position));
+        this.position = position;
+    }
+    
+    public LexingException(String message, Position position, Throwable cause) {
+        super(formatMessage(message, position), cause);
+        this.position = position;
+    }
+    
+    public LexingException(String message) {
+        super(message);
+        this.position = null;
+    }
+    
+    private static String formatMessage(String message, Position position) {
+        if (position == null) return message;
+        return String.format("%s [%s]", message, position);
+    }
+    
+    public Position getPosition() {
+        return position;
+    }
+    
+    @Override
+    public String toString() {
+        return getMessage();
+    }
+}package com.lox;
+
+import java.util.List;
+import java.util.ArrayList;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.Path;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.File;
+import java.io.IOException;
+
+import com.lox.lexer.Lexer;
+import com.lox.token.TokenStream;
+
+import com.lox.lexer.LexingException;
+
+import com.lox.parser.Parser;
+import com.lox.parser.ParsingException;
+
+import com.lox.ast.Expr;
+import com.lox.ast.tools.Printer;
+import com.lox.ast.tools.Dumper;
+
+import com.lox.executor.Executor;
+import com.lox.value.Value;
+import com.lox.value.ReturnValue;
+import com.lox.value.ThrowValue;
+import com.lox.util.Position;
+
+public class Main {
+    private static boolean printAst = false;
+    private static boolean dumpAst = false;
+    private static boolean verbose = false;
+    private static boolean time = false;
+    private static boolean compileOnly = false;
+    private static String outputFile = null;
+    private static String currentSource = null;
+    private static String currentFilename = null;
+    
+    private static boolean interactiveMode = false;
+    private static String currentDir = System.getProperty("user.dir");
+
+    public static void main(String[] args) {
+        try {
+            List<String> fileArgs = parseOptions(args);
+
+            if (fileArgs.size() == 1) {
+                runFile(fileArgs.get(0));
+            } else if (fileArgs.isEmpty()) {
+                interactiveMode = true;
+                runInteractiveMode();
+            } else {
+                printHelp();
+                System.exit(1);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+    }
+    
+    private static void runInteractiveMode() {
+        System.out.println("Lox Language v1.0 - Modo Interativo");
+        System.out.println("Configurações ativas:");
+        printCurrentSettings();
+        System.out.println();
+        System.out.println("Comandos disponíveis:");
+        System.out.println("  cd <dir>     - Muda para o diretório especificado");
+        System.out.println("  ls           - Lista arquivos do diretório atual");
+        System.out.println("  run <file>   - Executa o arquivo .lox especificado");
+        System.out.println("  set <flag>   - Ativa/desativa flags (print, dump, verbose, time)");
+        System.out.println("  status       - Mostra configurações atuais");
+        System.out.println("  help         - Mostra esta ajuda");
+        System.out.println("  exit / quit  - Sai do programa");
+        System.out.println();
+        
+        Path testsPath = Paths.get("tests");
+        if (Files.exists(testsPath) && Files.isDirectory(testsPath)) {
+            currentDir = testsPath.toString();
+            System.out.println("Diretório atual: " + currentDir);
+        } else {
+            System.out.println("Diretório atual: " + currentDir);
+        }
+        System.out.println();
+        
+        BufferedReader reader = new BufferedReader(new InputStreamReader(System.in));
+        
+        while (true) {
+            System.out.print("lox> ");
+            try {
+                String line = reader.readLine();
+                if (line == null) break;
+                
+                line = line.trim();
+                if (line.isEmpty()) continue;
+                
+                if (line.equals("exit") || line.equals("quit")) {
+                    System.out.println("Saindo...");
+                    break;
+                } else if (line.equals("help")) {
+                    printInteractiveHelp();
+                } else if (line.equals("status")) {
+                    printCurrentSettings();
+                } else if (line.startsWith("cd ")) {
+                    handleCdCommand(line.substring(3).trim());
+                } else if (line.equals("ls")) {
+                    handleLsCommand();
+                } else if (line.startsWith("run ")) {
+                    String filename = line.substring(4).trim();
+                    handleRunCommand(filename);
+                } else if (line.startsWith("set ")) {
+                    handleSetCommand(line.substring(4).trim());
+                } else {
+                    System.out.println("Comando desconhecido: " + line);
+                    System.out.println("Digite 'help' para ver os comandos disponíveis");
+                }
+            } catch (IOException e) {
+                System.err.println("Erro de leitura: " + e.getMessage());
+                break;
+            }
+        }
+    }
+    
+    private static void printCurrentSettings() {
+        System.out.println("  print-ast: " + (printAst ? "ativado" : "desativado"));
+        System.out.println("  dump-ast:  " + (dumpAst ? "ativado" : "desativado"));
+        System.out.println("  verbose:   " + (verbose ? "ativado" : "desativado"));
+        System.out.println("  time:      " + (time ? "ativado" : "desativado"));
+        System.out.println("  compile-only: " + (compileOnly ? "ativado" : "desativado"));
+        if (outputFile != null) {
+            System.out.println("  output:    " + outputFile);
+        }
+    }
+    
+    private static void handleSetCommand(String arg) {
+        switch (arg) {
+            case "print":
+            case "print-ast":
+                printAst = true;
+                System.out.println("print-ast ativado");
+                break;
+            case "no-print":
+            case "no-print-ast":
+                printAst = false;
+                System.out.println("print-ast desativado");
+                break;
+            case "dump":
+            case "dump-ast":
+                dumpAst = true;
+                System.out.println("dump-ast ativado");
+                break;
+            case "no-dump":
+            case "no-dump-ast":
+                dumpAst = false;
+                System.out.println("dump-ast desativado");
+                break;
+            case "verbose":
+            case "v":
+                verbose = true;
+                System.out.println("verbose ativado");
+                break;
+            case "no-verbose":
+            case "no-v":
+                verbose = false;
+                System.out.println("verbose desativado");
+                break;
+            case "time":
+            case "t":
+                time = true;
+                System.out.println("time ativado");
+                break;
+            case "no-time":
+            case "no-t":
+                time = false;
+                System.out.println("time desativado");
+                break;
+            case "compile-only":
+            case "c":
+                compileOnly = true;
+                System.out.println("compile-only ativado");
+                break;
+            case "no-compile-only":
+            case "no-c":
+                compileOnly = false;
+                System.out.println("compile-only desativado");
+                break;
+            default:
+                System.out.println("Opção desconhecida: " + arg);
+                System.out.println("Comandos set disponíveis:");
+                System.out.println("  set print        - Ativa print da AST");
+                System.out.println("  set no-print     - Desativa print da AST");
+                System.out.println("  set dump         - Ativa dump da AST");
+                System.out.println("  set no-dump      - Desativa dump da AST");
+                System.out.println("  set verbose      - Ativa modo verboso");
+                System.out.println("  set no-verbose   - Desativa modo verboso");
+                System.out.println("  set time         - Ativa temporização");
+                System.out.println("  set no-time      - Desativa temporização");
+        }
+    }
+    
+    private static void printInteractiveHelp() {
+        System.out.println("Comandos disponíveis:");
+        System.out.println("  cd <dir>     - Muda para o diretório especificado");
+        System.out.println("                 (ex: cd .., cd tests, cd /home/user)");
+        System.out.println("  ls           - Lista arquivos do diretório atual");
+        System.out.println("  run <file>   - Executa o arquivo .lox especificado");
+        System.out.println("  set <flag>   - Ativa/desativa flags");
+        System.out.println("  status       - Mostra configurações atuais");
+        System.out.println("  help         - Mostra esta ajuda");
+        System.out.println("  exit / quit  - Sai do programa");
+        System.out.println();
+        System.out.println("Comandos 'set':");
+        System.out.println("  set print        - Mostra AST em formato legível");
+        System.out.println("  set dump         - Mostra AST em formato estrutura");
+        System.out.println("  set verbose      - Modo verboso (tokens e debug)");
+        System.out.println("  set time         - Mostra tempo de execução");
+        System.out.println("  set compile-only - Apenas compila, não executa");
+        System.out.println();
+        System.out.println("  Use 'no-' antes da flag para desativar (ex: set no-print)");
+        System.out.println();
+        System.out.println("Diretório atual: " + currentDir);
+    }
+    
+    private static void handleCdCommand(String dir) {
+        try {
+            Path newPath;
+            if (dir.equals("..")) {
+                newPath = Paths.get(currentDir).getParent();
+                if (newPath == null) {
+                    System.out.println("Já está no diretório raiz");
+                    return;
+                }
+            } else if (dir.startsWith("/")) {
+                newPath = Paths.get(dir);
+            } else {
+                newPath = Paths.get(currentDir).resolve(dir);
+            }
+            
+            newPath = newPath.normalize();
+            
+            if (Files.exists(newPath) && Files.isDirectory(newPath)) {
+                currentDir = newPath.toString();
+                System.out.println("Diretório atual: " + currentDir);
+            } else {
+                System.out.println("Erro: Diretório não encontrado: " + dir);
+            }
+        } catch (Exception e) {
+            System.out.println("Erro: " + e.getMessage());
+        }
+    }
+    
+    private static void handleLsCommand() {
+        try {
+            File dir = new File(currentDir);
+            File[] files = dir.listFiles();
+            
+            if (files == null) {
+                System.out.println("Erro: Não foi possível listar o diretório");
+                return;
+            }
+            
+            System.out.println("Arquivos em " + currentDir + ":");
+            System.out.println("----------------------------------------");
+            
+            boolean hasLoxFiles = false;
+            for (File file : files) {
+                if (file.isFile() && file.getName().endsWith(".lox")) {
+                    System.out.println("  " + file.getName() + " *");
+                    hasLoxFiles = true;
+                }
+            }
+            
+            if (hasLoxFiles) {
+                System.out.println("  (* arquivos .lox executáveis)");
+            }
+            
+            System.out.println();
+            System.out.println("Diretórios:");
+            for (File file : files) {
+                if (file.isDirectory()) {
+                    System.out.println("  [" + file.getName() + "]");
+                }
+            }
+            
+            System.out.println("----------------------------------------");
+        } catch (Exception e) {
+            System.out.println("Erro ao listar diretório: " + e.getMessage());
+        }
+    }
+    
+    private static void handleRunCommand(String filename) {
+        try {
+            Path filePath;
+            if (filename.startsWith("/")) {
+                filePath = Paths.get(filename);
+            } else {
+                filePath = Paths.get(currentDir).resolve(filename);
+            }
+            
+            filePath = filePath.normalize();
+            
+            if (!Files.exists(filePath)) {
+                System.out.println("Erro: Arquivo não encontrado: " + filename);
+                System.out.println("Caminho procurado: " + filePath.toString());
+                return;
+            }
+            
+            if (!filePath.toString().endsWith(".lox")) {
+                System.out.println("Aviso: O arquivo não tem extensão .lox: " + filename);
+            }
+            
+            System.out.println("Executando: " + filePath.toString());
+            System.out.println("----------------------------------------");
+            
+            runFile(filePath.toString());
+            
+            System.out.println("----------------------------------------");
+        } catch (Exception e) {
+            System.err.println("Erro ao executar arquivo: " + e.getMessage());
+            if (verbose) {
+                e.printStackTrace();
+            }
+        }
+    }
+
+    private static void printHelp() {
+        System.out.println("Lox Language v1.0");
+        System.out.println("Uso: java com.lox.Main [opções] <arquivo>");
+        System.out.println();
+        System.out.println("Sem argumentos, entra em modo interativo com comandos cd, ls, run");
+        System.out.println();
+        System.out.println("Opções:");
+        System.out.println("  -p, --print          Mostra a AST em formato legível (código)");
+        System.out.println("  -d, --dump           Mostra a AST em formato de estrutura");
+        System.out.println("  --print-ast          Alias para -p");
+        System.out.println("  --dump-ast           Alias para -d");
+        System.out.println("  -c, --compile-only   Apenas compila, não executa");
+        System.out.println("  -v, --verbose        Modo verboso (mostra tokens e debug)");
+        System.out.println("  -t, --time           Mostra tempo de execução");
+        System.out.println("  -o <arquivo>         Salva output em arquivo");
+        System.out.println("  -h, --help           Mostra esta ajuda");
+        System.out.println();
+        System.out.println("Exemplos:");
+        System.out.println("  java com.lox.Main script.lox");
+        System.out.println("  java com.lox.Main --print-ast script.lox");
+        System.out.println("  java com.lox.Main -c script.lox");
+        System.out.println("  java com.lox.Main -p -o ast.txt script.lox");
+        System.out.println("  java com.lox.Main                 # Modo interativo");
+    }
+
+    private static List<String> parseOptions(String[] args) {
+        List<String> fileArgs = new ArrayList<>();
+
+        for (int i = 0; i < args.length; i++) {
+            switch (args[i]) {
+                case "-p":
+                case "--print":
+                case "--print-ast":
+                    printAst = true;
+                    break;
+
+                case "-d":
+                case "--dump":
+                case "--dump-ast":
+                    dumpAst = true;
+                    break;
+
+                case "-c":
+                case "--compile-only":
+                    compileOnly = true;
+                    break;
+
+                case "-v":
+                case "--verbose":
+                    verbose = true;
+                    break;
+
+                case "-t":
+                case "--time":
+                    time = true;
+                    break;
+
+                case "-o":
+                    if (i + 1 < args.length) {
+                        outputFile = args[++i];
+                    } else {
+                        System.err.println("Erro: -o requer um nome de arquivo");
+                        System.exit(1);
+                    }
+                    break;
+
+                case "-h":
+                case "--help":
+                    printHelp();
+                    System.exit(0);
+                    break;
+
+                default:
+                    if (args[i].startsWith("-")) {
+                        System.err.println("Opção desconhecida: " + args[i]);
+                        System.exit(1);
+                    }
+                    fileArgs.add(args[i]);
+            }
+        }
+
+        return fileArgs;
+    }
+
+    private static void runFile(String path) throws Exception {
+        byte[] bytes = Files.readAllBytes(Paths.get(path));
+        String source = new String(bytes);
+        currentFilename = path;
+
+        if (verbose) {
+            System.out.println("Arquivo: " + path);
+            System.out.println("Tamanho: " + source.length() + " bytes");
+            System.out.println("----------------------------------------");
+        }
+
+        long startTime = System.nanoTime();
+        runSource(source, path);
+        long endTime = System.nanoTime();
+
+        if (time) {
+            double ms = (endTime - startTime) / 1_000_000.0;
+            System.out.printf("Tempo: %.2f ms%n", ms);
+        }
+
+        currentFilename = null;
+    }
+
+    private static void runSource(String source, String filename) {
+        currentSource = source;
+        currentFilename = filename;
+
+        try {
+            if (verbose) {
+                System.out.println("Source: \"" + source + "\"");
+            }
+
+            TokenStream lexer = new Lexer(source);
+
+            if (verbose) {
+                System.out.println("Iniciando parse...");
+            }
+
+            Parser parser = new Parser(lexer);
+            List<Expr> statements = parser.parse();
+
+            if (verbose && statements != null) {
+                System.out.println("Parse concluído com sucesso");
+                System.out.println("Statements: " + statements.size());
+            }
+
+            StringBuilder output = new StringBuilder();
+
+            if (printAst && statements != null && !statements.isEmpty()) {
+                Printer printer = new Printer();
+                StringBuilder astPrint = new StringBuilder();
+                
+                for (int i = 0; i < statements.size(); i++) {
+                    Expr stmt = statements.get(i);
+                    String printed = stmt.accept(printer);
+                    astPrint.append(printed);
+                    if (i < statements.size() - 1) {
+                        astPrint.append("\n");
+                    }
+                }
+                
+                output.append("AST Print:\n").append(astPrint.toString()).append("\n");
+                System.out.println("AST Print:\n" + astPrint.toString());
+            }
+
+            if (dumpAst && statements != null && !statements.isEmpty()) {
+                Dumper dumper = new Dumper();
+                StringBuilder astDump = new StringBuilder();
+                
+                for (int i = 0; i < statements.size(); i++) {
+                    Expr stmt = statements.get(i);
+                    String dumped = stmt.accept(dumper);
+                    astDump.append(dumped);
+                    if (i < statements.size() - 1) {
+                        astDump.append("\n");
+                    }
+                }
+                
+                output.append("AST Dump:\n").append(astDump.toString()).append("\n");
+                System.out.println("AST Dump:\n" + astDump.toString());
+            }
+
+            if (outputFile != null && output.length() > 0) {
+                Files.write(Paths.get(outputFile), output.toString().getBytes());
+                if (verbose) {
+                    System.out.println("AST salva em: " + outputFile);
+                }
+            }
+
+            if (statements == null || statements.isEmpty()) {
+                if (verbose) {
+                    System.out.println("Nenhum statement para executar");
+                }
+                return;
+            }
+
+            if (compileOnly) {
+                if (verbose) {
+                    System.out.println("Modo compilar apenas - execução pulada");
+                }
+                return;
+            }
+
+            if (verbose) {
+                System.out.println("Executando...");
+            }
+
+            Executor executor = new Executor();
+            Value result = executor.execute(statements);
+
+            if (result != null) {
+                if (result.isNull()) {
+                    // Não imprime nada
+                } else if (result.isReturn()) {
+                    if (verbose) {
+                        System.err.println("Aviso: return não capturado no nível global");
+                    }
+                    ReturnValue ret = result.asReturn();
+                    Value value = ret.getValue();
+                    if (!value.isNull()) {
+                        System.out.println(value.toString());
+                    }
+                } else if (result.isThrow()) {
+                    ThrowValue throwValue = result.asThrow();
+                    System.err.println("Exceção não capturada: " + throwValue.getValue().toString());
+                } else {
+                    System.out.println(result.toString());
+                }
+            }
+
+        } catch (ParsingException e) {
+            printParsingError(e, source, filename);
+        } catch (LexingException e) {
+            printLexingError(e, source, filename);
+        } catch (Exception e) {
+            System.err.println("Erro: " + e.getMessage());
+            if (verbose) {
+                e.printStackTrace();
+            }
+        }
+
+        currentSource = null;
+        currentFilename = null;
+    }
+
+    private static void printLexingError(LexingException e, String source, String filename) {
+        Position pos = e.getPosition();
+        String location = filename != null ? filename : "linha";
+
+        if (pos != null && pos.getLine() > 0) {
+            int line = pos.getLine();
+            int column = pos.getColumn();
+
+            System.err.println("Erro de lexing em " + location + " " + line + ":" + column);
+            System.err.println(e.getMessage());
+
+            if (source != null && line > 0) {
+                String[] lines = source.split("\n", -1);
+                if (line <= lines.length) {
+                    String errorLine = lines[line - 1];
+                    System.err.println("    " + errorLine);
+
+                    if (column > 0 && column <= errorLine.length()) {
+                        StringBuilder pointer = new StringBuilder();
+                        pointer.append("    ");
+                        for (int i = 1; i < column; i++) {
+                            pointer.append(" ");
+                        }
+                        pointer.append("^");
+                        System.err.println(pointer.toString());
+                    }
+                }
+            }
+        } else {
+            System.err.println("Erro de lexing: " + e.getMessage());
+        }
+
+        if (verbose) {
+            e.printStackTrace();
+        }
+    }
+
+    private static void printParsingError(ParsingException e, String source, String filename) {
+        Position pos = e.getPosition();
+        String location = filename != null ? filename : "linha";
+
+        if (pos != null && pos.getLine() > 0) {
+            int line = pos.getLine();
+            int column = pos.getColumn();
+            int start = pos.getStart();
+            int end = pos.getEnd();
+
+            System.err.println("Erro de parsing em " + location + " " + line + ":" + column);
+            System.err.println(e.getMessage());
+
+            if (source != null && line > 0) {
+                String[] lines = source.split("\n", -1);
+                if (line <= lines.length) {
+                    String errorLine = lines[line - 1];
+                    System.err.println("    " + errorLine);
+
+                    if (start >= 0 && end >= 0 && start < source.length()) {
+                        int lineStart = findLineStart(source, line);
+                        int columnStart = start - lineStart;
+                        int columnEnd = end - lineStart;
+
+                        if (columnStart >= 0 && columnEnd >= columnStart) {
+                            StringBuilder pointer = new StringBuilder();
+                            pointer.append("    ");
+
+                            for (int i = 0; i < columnStart && i < errorLine.length(); i++) {
+                                pointer.append(" ");
+                            }
+
+                            int pointerEnd = Math.min(columnEnd, errorLine.length());
+                            for (int i = columnStart; i < pointerEnd; i++) {
+                                pointer.append("^");
+                            }
+
+                            if (pointer.length() > 4) {
+                                System.err.println(pointer.toString());
+                            }
+                        }
+                    } else if (column > 0 && column <= errorLine.length()) {
+                        StringBuilder pointer = new StringBuilder();
+                        pointer.append("    ");
+                        for (int i = 1; i < column; i++) {
+                            pointer.append(" ");
+                        }
+                        pointer.append("^");
+                        System.err.println(pointer.toString());
+                    }
+                }
+            }
+        } else {
+            System.err.println("Erro de parsing: " + e.getMessage());
+        }
+
+        if (verbose) {
+            e.printStackTrace();
+        }
+    }
+
+    private static int findLineStart(String source, int line) {
+        int pos = 0;
+        for (int i = 1; i < line; i++) {
+            pos = source.indexOf('\n', pos);
+            if (pos == -1) break;
+            pos++;
+        }
+        return pos;
+    }
+}package com.lox.parser;
+
+import java.util.ArrayList;
+import java.util.List;
+
+import com.lox.token.*;
+import com.lox.ast.*;
+import com.lox.util.Pair;
+import com.lox.util.Position;
+import static com.lox.token.Type.*;
+
+public class Parser {
+	// Erros de parsing
+	private static final String ERR_UNEXPECTED = "Token inesperado: %s";
+	private static final String ERR_EXPECTED = "Esperado %s, encontrado %s";
+	private static final String ERR_VAR = "Esperado 'var'";
+	private static final String ERR_FUN = "Esperado 'fun'";
+	private static final String ERR_NAME = "Esperado nome";
+	private static final String ERR_LPAREN = "Esperado '('";
+	private static final String ERR_RPAREN = "Esperado ')'";
+	private static final String ERR_COLON = "Esperado ':'";
+	private static final String ERR_PARAM = "Esperado nome do parâmetro";
+	private static final String ERR_VARARGS = "Apenas um varargs é permitido";
+	private static final String ERR_VARARGS_LAST = "Varargs deve ser o último";
+	private static final String ERR_LBRACE = "Esperado '{'";
+	private static final String ERR_RBRACE = "Esperado '}'";
+	private static final String ERR_ARROW_BRACE = "Esperado '->' ou '{'";
+	private static final String ERR_RBRACKET = "Esperado ']'";
+	private static final String ERR_ASSIGN = "Alvo de atribuição inválido";
+	private static final String ERR_LBRACKET = "Esperado '['";
+	private static final String ERR_IF = "Esperado '(' após 'if'";
+	private static final String ERR_WHILE = "Esperado '(' após 'while'";
+	private static final String ERR_BREAK_OUTSIDE = "'break' só pode ser usado dentro de loop";
+	private static final String ERR_CONTINUE_OUTSIDE = "'continue' só pode ser usado dentro de loop";
+	private static final String ERR_EXPECTED_SEMICOLON = "Esperado ';'";
+	private static final String ERR_BLOCK_TABLE = "Bloco tabela só pode conter declarações (var, fun)";
+	private static final String ERR_LAMBDA_ARROW = "Lambda sem parênteses requer '->' antes do corpo";
+	private static final String ERR_INVALID_STMT_EXPR = "Expressão não pode ser usada como statement. Apenas atribuições, chamadas de função e incrementos/decrementos são permitidos";
+	private static final String ERR_INVALID_UNARY_STMT = "Operador unário '%s' não pode ser usado como statement";
+	private static final String ERR_DECOR_NAME = "Esperado nome do decorator após '@'";
+	private static final String ERR_DECOR_FUNCTION = "Funções não podem ter decoradores";
+	private static final String ERR_DECOR_AT = "Esperado '@'";
+	private static final String ERR_DECOR_VAR = "Esperado 'var' após decorator";
+	private static final String ERR_ARROW_RETURN = "Return statement não permitido em arrow function. O valor é implícito";
+	private static final String ERR_ARROW_BREAK_CONTINUE = "Break/continue não permitido em arrow function";
+
+	private final TokenStream stream;
+	private FunDeclExpr currentFunction = null;
+	private int loopDepth = 0;
+	private boolean inVarDecl = false;
+
+	public Parser(TokenStream stream) {
+		this.stream = stream;
+	}
+
+	public List<Expr> parse() {
+		try {
+			List<Expr> statements = new ArrayList<>();
+
+			while (!stream.isAtEnd()) {
+				Expr e = stmt();
+				if (e != null) statements.add(e);
+			}
+
+			return statements;
+		} catch (ParsingException e) {
+			throw e;
+		} catch (Exception e) {
+			throw new ParsingException(String.format("Erro: %s", e.getMessage()), Position.ZERO, e);
+		}
+	}
+
+	private Position pos(Token t) {
+		return t.getPosition();
+	}
+
+	private Position between(Token start, Token end) {
+		return Position.between(pos(start), pos(end));
+	}
+
+	private Position between(Token start, Position end) {
+		return Position.between(pos(start), end);
+	}
+
+	private Position between(Position start, Token end) {
+		return Position.between(start, pos(end));
+	}
+
+	private Position between(Position start, Position end) {
+		return Position.between(start, end);
+	}
+
+	private Position between(List<Expr> expressions) {
+		if (expressions == null || expressions.isEmpty()) {
+			return Position.ZERO;
+		}
+		return expressions.get(expressions.size() - 1).getPosition();
+	}
+
+	private ParsingException error(String msg) {
+		return new ParsingException(msg, pos(stream.peek()));
+	}
+
+	private ParsingException error(String msg, Token t) {
+		return new ParsingException(msg, pos(t));
+	}
+
+	private ParsingException error(String msg, Token start, Token end) {
+		return new ParsingException(msg, between(start, end));
+	}
+
+	private ParsingException error(String msg, Position p) {
+		return new ParsingException(msg, p);
+	}
+
+	private ParsingException errorExpected(String expected, Token found) {
+		return new ParsingException(String.format(ERR_EXPECTED, expected, found.lexeme), pos(found));
+	}
+
+	private ParsingException errorUnexpected(Token t) {
+		return new ParsingException(String.format(ERR_UNEXPECTED, t.lexeme), pos(t));
+	}
+
+	private void semicolon() {
+		if (stream.check(RBRACE)) return;
+		if (!stream.match(SEMICOLON)) throw error(ERR_EXPECTED_SEMICOLON);
+	}
+
+	private List<Expr> body() {
+		if (!stream.match(LBRACE)) throw error(ERR_LBRACE);
+
+		List<Expr> statements = new ArrayList<>();
+
+		while (!stream.isAtEnd() && !stream.check(RBRACE)) {
+			Expr s = stmt();
+			if (s != null) statements.add(s);
+		}
+
+		if (!stream.match(RBRACE)) throw error(ERR_RBRACE);
+
+		return statements;
+	}
+
+	private Expr object() {
+		if (!stream.match(LBRACE)) throw error(ERR_LBRACE);
+
+		Token start = stream.previous();
+		List<Expr> declarations = new ArrayList<>();
+
+		while (!stream.isAtEnd() && !stream.check(RBRACE)) {
+			if (stream.checkAny(VAR, FUN)) {
+				declarations.add(decl());
+			} else {
+				throw error(ERR_BLOCK_TABLE, stream.peek());
+			}
+		}
+
+		if (!stream.match(RBRACE)) throw error(ERR_RBRACE);
+
+		Token end = stream.previous();
+		return new ObjectExpr(declarations, between(start, end));
+	}
+
+	private Expr decor() {
+		if (!stream.match(AT)) throw error(ERR_DECOR_AT);
+
+		Token atToken = stream.previous();
+
+		if (!stream.check(IDENTIFIER)) {
+			throw error(ERR_DECOR_NAME, atToken);
+		}
+
+		Token nameToken = stream.advance();
+		List<Expr> args = null;
+
+		if (stream.check(LPAREN)) {
+			args = arguments();
+		}
+
+		return new DecorExpr(nameToken.lexeme, args, between(atToken, nameToken));
+	}
+
+	private Expr decl() {
+		List<Expr> decorators = new ArrayList<>();
+
+		while (stream.check(AT)) {
+			decorators.add(decor());
+		}
+
+		if (stream.check(VAR)) return varDecl(decorators);
+		if (stream.check(FUN)) {
+			if (!decorators.isEmpty()) {
+				throw error(ERR_DECOR_FUNCTION, stream.peek());
+			}
+			return funDecl();
+		}
+
+		if (!decorators.isEmpty()) {
+			throw error(ERR_DECOR_VAR);
+		}
+
+		throw error("Erro interno: decl() chamado sem var ou fun");
+	}
+
+	private Expr varDecl(List<Expr> decorators) {
+		Token start = stream.peek();
+
+		if (!stream.match(VAR)) throw error(ERR_VAR);
+
+		Token name;
+		if (stream.check(IDENTIFIER)) {
+			name = stream.advance();
+		} else {
+			throw error(ERR_NAME);
+		}
+
+		Expr value = null;
+		if (stream.match(EQ) && !stream.match(QUESTION)) {
+			inVarDecl = true;
+			value = expr();
+			inVarDecl = false;
+		}
+
+		semicolon();
+
+		return new VarDeclExpr(
+				   name.lexeme,
+				   value,
+				   decorators,
+				   between(start, stream.previous())
+			   );
+	}
+
+	private Expr funDecl() {
+		Token start = stream.peek();
+
+		if (!stream.match(FUN)) throw error(ERR_FUN);
+		if (!stream.check(IDENTIFIER)) throw error(ERR_NAME);
+
+		Token nameToken = stream.advance();
+		String name = nameToken.lexeme;
+
+		if (!stream.check(LPAREN)) throw error(ERR_LPAREN);
+
+		Pair<List<String>, Boolean> params = parameters();
+		FunDeclExpr prev = currentFunction;
+
+		FunDeclExpr f = new FunDeclExpr(
+			name,
+			params != null ? params.getFirst() : null,
+			null,
+			params != null && params.getSecond(),
+			null
+		);
+
+		currentFunction = f;
+
+		if (stream.match(ARROW)) {
+			Expr bodyExpr = arrow();
+			semicolon();
+			List<Expr> bodyList = new ArrayList<>();
+			bodyList.add(bodyExpr);
+			f.setBody(bodyList);
+			f.setPosition(between(start, bodyExpr.getPosition()));
+		} else if (stream.check(LBRACE)) {
+			List<Expr> bodyList = body();
+			f.setBody(bodyList);
+			f.setPosition(between(
+							  start.getPosition(),
+							  bodyList.isEmpty() ? start.getPosition() : between(bodyList)
+						  ));
+		} else {
+			throw error(ERR_ARROW_BRACE);
+		}
+
+		currentFunction = prev;
+		return f;
+	}
+
+	private Expr lambdaDecl() {
+		Token start = stream.advance();
+
+		boolean hasParens = stream.check(LPAREN);
+		Pair<List<String>, Boolean> params;
+
+		if (hasParens) {
+			params = parameters();
+		} else {
+			params = Pair.of(new ArrayList<>(), false);
+		}
+
+		FunDeclExpr prev = currentFunction;
+		FunDeclExpr lambda = new FunDeclExpr(
+			null,
+			params.getFirst(),
+			new ArrayList<>(),
+			params.getSecond(),
+			null
+		);
+
+		currentFunction = lambda;
+		boolean hasArrow = stream.match(ARROW);
+
+		if (!hasParens && !hasArrow) throw error(ERR_LAMBDA_ARROW);
+
+		if (hasArrow) {
+			Expr bodyExpr = arrow();
+			List<Expr> bodyList = new ArrayList<>();
+			bodyList.add(bodyExpr);
+			lambda.setBody(bodyList);
+			lambda.setPosition(between(start, bodyExpr.getPosition()));
+		} else if (stream.check(LBRACE)) {
+			List<Expr> bodyList = body();
+			lambda.setBody(bodyList);
+			lambda.setPosition(between(
+								   start.getPosition(),
+								   bodyList.isEmpty() ? start.getPosition() : between(bodyList)
+							   ));
+		} else {
+			throw error(ERR_ARROW_BRACE);
+		}
+
+		currentFunction = prev;
+		return lambda;
+	}
+
+	private Expr arrow() {
+		if (stream.check(LBRACE)) {
+			Expr table = object();
+			return new ReturnExpr(table, currentFunction, table.getPosition());
+		} else {
+			Expr expr = expr();
+			
+			if (expr instanceof ReturnExpr) {
+				throw error(ERR_ARROW_RETURN);
+			}
+			if (expr instanceof BreakExpr || expr instanceof ContinueExpr) {
+				throw error(ERR_ARROW_BREAK_CONTINUE);
+			}
+			
+			return new ReturnExpr(expr, currentFunction, expr.getPosition());
+		}
+	}
+
+	private Expr stmt() {
+		Token t = stream.peek();
+
+		if (t.type == AT || t.type == VAR || t.type == FUN) {
+			return decl();
+		}
+
+		if (t.type == IF) return ifStmt();
+		if (t.type == WHILE) return whileStmt();
+		if (t.isBreak()) return breakStmt();
+		if (t.isContinue()) return continueStmt();
+		if (t.isReturn()) return returnStmt();
+		if (t.isThrow()) return throwStmt();
+
+		return exprStmt();
+	}
+
+	private Expr ifStmt() {
+		Token start = stream.advance();
+
+		if (!stream.match(LPAREN)) throw error(ERR_IF);
+
+		Expr condition = expr();
+
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
+
+		List<Expr> thenBranch;
+		if (stream.check(LBRACE)) {
+			thenBranch = body();
+		} else {
+			thenBranch = new ArrayList<>();
+			thenBranch.add(stmt());
+		}
+
+		List<Expr> elseBranch = null;
+
+		if (stream.match(ELSE)) {
+			if (stream.check(LBRACE)) {
+				elseBranch = body();
+			} else {
+				elseBranch = new ArrayList<>();
+				elseBranch.add(stmt());
+			}
+		}
+
+		return new IfExpr(
+				   condition,
+				   thenBranch,
+				   elseBranch,
+				   between(start, elseBranch != null ? between(elseBranch) : between(thenBranch))
+			   );
+	}
+
+	private Expr whileStmt() {
+		Token start = stream.advance();
+
+		if (!stream.match(LPAREN)) throw error(ERR_WHILE);
+
+		Expr condition = expr();
+
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
+
+		loopDepth++;
+
+		List<Expr> bodyList;
+		if (stream.check(LBRACE)) {
+			bodyList = body();
+		} else {
+			bodyList = new ArrayList<>();
+			bodyList.add(stmt());
+		}
+
+		loopDepth--;
+
+		return new WhileExpr(condition, bodyList, between(start, between(bodyList)));
+	}
+
+	private Expr breakStmt() {
+		Token t = stream.advance();
+		if (loopDepth == 0) throw error(ERR_BREAK_OUTSIDE, t);
+		semicolon();
+		return new BreakExpr(pos(t));
+	}
+
+	private Expr continueStmt() {
+		Token t = stream.advance();
+		if (loopDepth == 0) throw error(ERR_CONTINUE_OUTSIDE, t);
+		semicolon();
+		return new ContinueExpr(pos(t));
+	}
+
+	private Expr returnStmt() {
+		Token t = stream.advance();
+
+		if (stream.checkAny(SEMICOLON, RBRACE)) {
+			semicolon();
+			return new ReturnExpr(null, currentFunction, pos(t));
+		}
+
+		Expr value = expr();
+		semicolon();
+		return new ReturnExpr(value, currentFunction, between(t, value.getPosition()));
+	}
+
+	private Expr throwStmt() {
+		Token t = stream.advance();
+
+		if (stream.checkAny(SEMICOLON, RBRACE)) {
+			semicolon();
+			return new ThrowExpr(null, currentFunction, pos(t));
+		}
+
+		Expr value = expr();
+		semicolon();
+		return new ThrowExpr(value, currentFunction, between(t, value.getPosition()));
+	}
+
+	private Expr exprStmt() {
+		Token start = stream.peek();
+		Expr e = expr();
+
+		if (!(e instanceof AssignExpr ||
+				e instanceof SetExpr ||
+				e instanceof IndexSetExpr ||
+				e instanceof CallExpr ||
+				e instanceof UnaryExpr)) {
+			throw error(ERR_INVALID_STMT_EXPR, start, stream.previous());
+		}
+
+		if (e instanceof UnaryExpr) {
+			UnaryExpr unary = (UnaryExpr) e;
+			if (!unary.operator.equals("++") && !unary.operator.equals("--")) {
+				throw error(String.format(ERR_INVALID_UNARY_STMT, unary.operator), start, stream.previous());
+			}
+		}
+
+		semicolon();
+		return e;
+	}
+
+	private Expr expr() {
+		return assignment();
+	}
+
+	private Expr assignment() {
+		Expr expr = logicalOr();
+		Token op = stream.peek();
+
+		if (op.isAssignment()) {
+			stream.advance();
+			Expr value = assignment();
+
+			if (expr instanceof VarExpr) {
+				String name = ((VarExpr) expr).name;
+
+				if (op.type != EQ) {
+					String binaryOp = op.lexeme.substring(0, op.lexeme.length() - 1);
+					Expr binary = new BinaryExpr(expr, binaryOp, value, between(op, value.getPosition()));
+					return new AssignExpr(name, binary, between(expr.getPosition(), value.getPosition()));
+				}
+
+				return new AssignExpr(name, value, between(expr.getPosition(), value.getPosition()));
+
+			} else if (expr instanceof GetExpr) {
+				GetExpr get = (GetExpr) expr;
+
+				if (op.type != EQ) {
+					String binaryOp = op.lexeme.substring(0, op.lexeme.length() - 1);
+					Expr binary = new BinaryExpr(expr, binaryOp, value, between(op, value.getPosition()));
+					return new SetExpr(get.object, get.name, binary, between(expr.getPosition(), value.getPosition()));
+				}
+
+				return new SetExpr(get.object, get.name, value, between(expr.getPosition(), value.getPosition()));
+
+			} else if (expr instanceof IndexGetExpr) {
+				IndexGetExpr idx = (IndexGetExpr) expr;
+
+				if (op.type != EQ) {
+					String binaryOp = op.lexeme.substring(0, op.lexeme.length() - 1);
+					Expr binary = new BinaryExpr(expr, binaryOp, value, between(op, value.getPosition()));
+					return new IndexSetExpr(idx.array, idx.index, binary, between(expr.getPosition(), value.getPosition()));
+				}
+
+				return new IndexSetExpr(idx.array, idx.index, value, between(expr.getPosition(), value.getPosition()));
+			}
+
+			throw error(ERR_ASSIGN, op);
+		}
+
+		return expr;
+	}
+
+	private Expr logicalOr() {
+		Expr expr = logicalAnd();
+
+		while (stream.match(OR_OR)) {
+			Token op = stream.previous();
+			expr = new LogicalExpr(expr, op.lexeme, logicalAnd(), between(expr.getPosition(), stream.previous().getPosition()));
+		}
+
+		return expr;
+	}
+
+	private Expr logicalAnd() {
+		Expr expr = coalesce();
+
+		while (stream.match(AND_AND)) {
+			Token op = stream.previous();
+			expr = new LogicalExpr(expr, op.lexeme, coalesce(), between(expr.getPosition(), stream.previous().getPosition()));
+		}
+
+		return expr;
+	}
+
+	private Expr coalesce() {
+		Expr expr = ternary();
+
+		while (stream.match(QUESTION_QUESTION)) {
+			Token op = stream.previous();
+			Expr right = ternary();
+			expr = new BinaryExpr(expr, op.lexeme, right, between(expr.getPosition(), right.getPosition()));
+		}
+
+		return expr;
+	}
+
+	private Expr ternary() {
+		Expr expr = equality();
+
+		if (stream.match(QUESTION)) {
+			Expr thenExpr = expr();
+			if (!stream.match(COLON)) throw error(ERR_COLON);
+			Expr elseExpr = expr();
+			return new TernaryExpr(expr, thenExpr, elseExpr, between(expr.getPosition(), elseExpr.getPosition()));
+		}
+
+		return expr;
+	}
+
+	private Expr equality() {
+		Expr expr = comparison();
+
+		while (stream.matchAny(EQ_EQ, NOT_EQ)) {
+			Token op = stream.previous();
+			expr = new BinaryExpr(expr, op.lexeme, comparison(), between(expr.getPosition(), stream.previous().getPosition()));
+		}
+
+		return expr;
+	}
+
+	private Expr comparison() {
+		Expr expr = term();
+
+		while (stream.matchAny(LT, GT, LTE, GTE)) {
+			Token op = stream.previous();
+			expr = new BinaryExpr(expr, op.lexeme, term(), between(expr.getPosition(), stream.previous().getPosition()));
+		}
+
+		return expr;
+	}
+
+	private Expr term() {
+		Expr expr = factor();
+
+		while (stream.matchAny(PLUS, MINUS)) {
+			Token op = stream.previous();
+			expr = new BinaryExpr(expr, op.lexeme, factor(), between(expr.getPosition(), stream.previous().getPosition()));
+		}
+
+		return expr;
+	}
+
+	private Expr factor() {
+		Expr expr = unary();
+
+		while (stream.matchAny(STAR, SLASH, PERCENT)) {
+			Token op = stream.previous();
+			expr = new BinaryExpr(expr, op.lexeme, unary(), between(expr.getPosition(), stream.previous().getPosition()));
+		}
+
+		return expr;
+	}
+
+	private Expr unary() {
+		Token t = stream.peek();
+
+		if (t.isUnary()) {
+			stream.advance();
+			return new UnaryExpr(t.lexeme, unary(), UnaryExpr.PREFIX, between(t, stream.previous()));
+		}
+
+		if (t.isIncrementDecrement()) {
+			stream.advance();
+			return new UnaryExpr(t.lexeme, unary(), UnaryExpr.PREFIX, between(t, stream.previous()));
+		}
+
+		return call();
+	}
+
+	private Expr call() {
+		Expr expr = primary();
+
+		while (true) {
+			if (stream.match(DOT)) {
+				Token dot = stream.previous();
+				if (!stream.check(IDENTIFIER)) throw error(ERR_NAME);
+				Token name = stream.advance();
+				expr = new GetExpr(expr, name.lexeme, between(dot, name));
+				continue;
+			}
+
+			if (stream.match(LBRACKET)) {
+				Token bracket = stream.previous();
+				Expr idx = expr();
+				if (!stream.check(RBRACKET)) throw error(ERR_RBRACKET);
+				Token rbracket = stream.advance();
+				expr = new IndexGetExpr(expr, idx, between(bracket, rbracket));
+				continue;
+			}
+
+			if (stream.check(LPAREN)) {
+				List<Expr> args = arguments();
+				expr = new CallExpr(
+					expr,
+					args,
+					between(expr.getPosition(), !args.isEmpty() ? between(args) : expr.getPosition())
+				);
+				continue;
+			}
+
+			if (stream.peek().isIncrementDecrement()) {
+				Token op = stream.advance();
+				expr = new UnaryExpr(op.lexeme, expr, UnaryExpr.POSTFIX, between(expr.getPosition(), op));
+				break;
+			}
+
+			break;
+		}
+
+		return expr;
+	}
+
+	private List<Expr> arguments() {
+		if (!stream.match(LPAREN)) throw error(ERR_LPAREN);
+
+		List<Expr> args = new ArrayList<>();
+
+		if (!stream.check(RPAREN)) {
+			do {
+				args.add(expr());
+			} while (stream.match(COMMA));
+		}
+
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
+
+		return args;
+	}
+
+	private Pair<List<String>, Boolean> parameters() {
+		if (!stream.match(LPAREN)) throw error(ERR_LPAREN);
+
+		List<String> params = new ArrayList<>();
+		boolean hasVarargs = false;
+
+		if (!stream.check(RPAREN)) {
+			do {
+				boolean isVararg = false;
+
+				if (stream.check(ELLIPSIS)) {
+					if (hasVarargs) throw error(ERR_VARARGS);
+					isVararg = true;
+					hasVarargs = true;
+					stream.advance();
+				}
+
+				if (!stream.check(IDENTIFIER)) throw error(ERR_PARAM);
+
+				Token p = stream.advance();
+				params.add(p.lexeme);
+
+				if (isVararg) {
+					if (!stream.checkAny(RPAREN, COMMA)) throw error(ERR_VARARGS_LAST, p);
+					if (stream.check(COMMA)) throw error(ERR_VARARGS_LAST, p);
+				}
+			} while (stream.match(COMMA));
+		}
+
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
+
+		return Pair.of(params, hasVarargs);
+	}
+
+	private Expr array() {
+		if (!stream.match(LBRACKET)) throw error(ERR_LBRACKET);
+
+		Token start = stream.previous();
+		List<Expr> elements = new ArrayList<>();
+
+		if (!stream.check(RBRACKET)) {
+			do {
+				elements.add(expr());
+			} while (stream.match(COMMA));
+		}
+
+		if (!stream.match(RBRACKET)) throw error(ERR_RBRACKET);
+
+		Token end = stream.previous();
+		return new ArrayExpr(elements, between(start, end));
+	}
+
+	private Expr parenthesis() {
+		if (!stream.match(LPAREN)) throw error(ERR_LPAREN);
+
+		Token start = stream.previous();
+		Expr inner = expr();
+
+		if (!stream.match(RPAREN)) throw error(ERR_RPAREN);
+
+		Token end = stream.previous();
+		return new ParenthesisExpr(inner, between(start, end));
+	}
+
+	private Expr primary() {
+		if (stream.peek().isLiteral()) {
+			Token t = stream.advance();
+			return new LiteralExpr(t.literal, pos(t));
+		}
+
+		if (stream.match(IDENTIFIER)) {
+			return new VarExpr(stream.previous().lexeme, pos(stream.previous()));
+		}
+
+		if (stream.check(FUN)) return lambdaDecl();
+		if (stream.check(LBRACKET)) return array();
+		if (stream.check(LBRACE)) return object();
+		if (stream.check(LPAREN)) return parenthesis();
+
+		throw errorUnexpected(stream.peek());
+	}
+}package com.lox.parser;
+
+import com.lox.util.Position;
+
+public class ParsingException extends RuntimeException {
+    private final Position position;
+    
+    public ParsingException(String message, Position position) {
+        super(formatMessage(message, position));
+        this.position = position;
+    }
+    
+    public ParsingException(String message, Position position, Throwable cause) {
+        super(formatMessage(message, position), cause);
+        this.position = position;
+    }
+    
+    public ParsingException(String message) {
+        super(message);
+        this.position = null;
+    }
+    
+    private static String formatMessage(String message, Position position) {
+        if (position == null) return message;
+        return String.format("%s [%s]", message, position);
+    }
+    
+    public Position getPosition() { return position; }
+    
+    @Override
+    public String toString() {
+        return getMessage();
+    }
+}package com.lox.value;
+
+import java.util.*;
+
+public class ArrayValue extends TableValue {
+    private final List<Value> elements = new ArrayList<>();
+    
+    public ArrayValue() {
+        super();
+        init();
+    }
+    
+    public ArrayValue(List<Value> elements) {
+        super();
+        this.elements.addAll(elements);
+        init();
+    }
+    
+    @Override
+    public boolean isArray() { return true; }
+    
+    @Override
+    public ArrayValue asArray() { return this; }
+    
+    private void init() {
+        declare("length", NumberValue.of(elements.size()));
+        
+        FunctionValue addFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                add(arguments.get(0));
+                return NullValue.INSTANCE;
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "add"; }
+        };
+        declare("add", addFunc);
+        
+        FunctionValue removeFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                if (elements.isEmpty()) return NullValue.INSTANCE;
+                return remove();
+            }
+            
+            @Override
+            public int arity() { return 0; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 0; }
+            @Override
+            public String getName() { return "remove"; }
+        };
+        declare("remove", removeFunc);
+        
+        FunctionValue filterFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                Value callback = arguments.get(0);
+                if (!callback.isFunction()) {
+                    return new ThrowValue(new StringValue("filter requer uma função"), null);
+                }
+                FunctionValue func = callback.asFunction();
+                ArrayValue result = new ArrayValue();
+                for (int i = 0; i < elements.size(); i++) {
+                    Value shouldKeep = func.call(env, List.of(elements.get(i), NumberValue.of(i)));
+                    if (shouldKeep.isThrow() || shouldKeep.isReturn()) {
+                        return shouldKeep;
+                    }
+                    if (shouldKeep.truthy()) {
+                        result.add(elements.get(i));
+                    }
+                }
+                return result;
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "filter"; }
+        };
+        declare("filter", filterFunc);
+        
+        FunctionValue joinFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                String separator = arguments.get(0).toString();
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < elements.size(); i++) {
+                    if (i > 0) sb.append(separator);
+                    sb.append(elements.get(i).toString());
+                }
+                return new StringValue(sb.toString());
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "join"; }
+        };
+        declare("join", joinFunc);
+        
+        FunctionValue containsFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                Value search = arguments.get(0);
+                for (Value element : elements) {
+                    if (element.equals(search)) {
+                        return BooleanValue.TRUE;
+                    }
+                }
+                return BooleanValue.FALSE;
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "contains"; }
+        };
+        declare("contains", containsFunc);
+    }
+    
+    public void add(Value value) {
+        elements.add(value);
+        set("length", NumberValue.of(elements.size()));
+    }
+    
+    public Value remove() {
+        if (elements.isEmpty()) return NullValue.INSTANCE;
+        Value removed = elements.remove(elements.size() - 1);
+        set("length", NumberValue.of(elements.size()));
+        return removed;
+    }
+    
+    public int length() {
+        return elements.size();
+    }
+    
+    public List<Value> getElements() {
+        return new ArrayList<>(elements);
+    }
+    
+    public Value get(int index) {
+        if (index < 0 || index >= elements.size()) {
+            return new ThrowValue(new StringValue("Índice fora dos limites: " + index), null);
+        }
+        return elements.get(index);
+    }
+    
+    public void set(int index, Value value) {
+        if (index < 0 || index >= elements.size()) {
+            throw new RuntimeException("Índice fora dos limites: " + index);
+        }
+        elements.set(index, value);
+    }
+    
+    @Override
+    public String type() {
+        return "array";
+    }
+    
+    @Override
+    public boolean truthy() {
+        return !elements.isEmpty();
+    }
+    
+    @Override
+    public String toString() {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        for (int i = 0; i < elements.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(elements.get(i).toString());
+        }
+        sb.append("]");
+        return sb.toString();
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof ArrayValue)) return false;
+        ArrayValue other = (ArrayValue) obj;
+        return elements.equals(other.elements);
+    }
+}package com.lox.value;
+
+public class BooleanValue extends Value {
+    public static final BooleanValue TRUE = new BooleanValue(true);
+    public static final BooleanValue FALSE = new BooleanValue(false);
+    
+    private final boolean value;
+    
+    private BooleanValue(boolean value) {
+        this.value = value;
+    }
+    
+    public static BooleanValue of(boolean value) {
+        return value ? TRUE : FALSE;
+    }
+    
+    public boolean getValue() {
+        return value;
+    }
+    
+    @Override
+    public boolean isBoolean() { return true; }
+    
+    @Override
+    public boolean asBoolean() { return value; }
+    
+    @Override
+    public String type() {
+        return "boolean";
+    }
+    
+    @Override
+    public boolean truthy() {
+        return value;
+    }
+    
+    @Override
+    public String toString() {
+        return String.valueOf(value);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof BooleanValue)) return false;
+        return value == ((BooleanValue) obj).value;
+    }
+}package com.lox.value;
+
+import com.lox.ast.*;
+import java.util.List;
+
+public interface Callable {
+    
+    Value executeFunction(FunDeclExpr function, TableValue env, TableValue closure);
+    
+    Value executeFunction(FunDeclExpr function, TableValue callEnv, 
+                          List<Value> arguments, TableValue closure);
+    
+    Value execute(List<Expr> expr);
+}package com.lox.value;
+
+public class BreakValue extends Value {
+    public static final BreakValue INSTANCE = new BreakValue();
+    
+    private BreakValue() {}
+    
+    @Override
+    public boolean isBreak() { return true; }
+    
+    @Override
+    public BreakValue asBreak() { return this; }
+    
+    @Override
+    public String type() { return "break"; }
+    
+    @Override
+    public boolean truthy() { return false; }
+    
+    @Override
+    public String toString() { return "<break>"; }
+    
+    @Override
+    public boolean equals(Object obj) {
+        return this == obj;
+    }
+}package com.lox.value;
+
+import com.lox.ast.FunDeclExpr;
+import java.util.List;
+
+public class FunctionValue extends Value {
+    private final FunDeclExpr declaration;
+    private final Callable executor;
+    private final TableValue closure;
+
+    public FunctionValue(FunDeclExpr declaration, Callable executor, TableValue closure) {
+        this.declaration = declaration;
+        this.executor = executor;
+        this.closure = closure;
+    }
+
+    public FunDeclExpr getDeclaration() {
+        return declaration;
+    }
+    
+    public String getName() {
+        return declaration.name != null && !declaration.name.isEmpty() 
+            ? declaration.name 
+            : "anonymous";
+    }
+
+    public Value call(TableValue env, List<Value> arguments) {
+        return executor.executeFunction(declaration, env, arguments, closure);
+    }
+
+    public int arity() {
+        return declaration.parameters != null ? declaration.parameters.size() : 0;
+    }
+
+    public boolean hasVarargs() {
+        return declaration.hasVarargs;
+    }
+
+    public int minArity() {
+        return declaration.hasVarargs
+               ? declaration.parameters.size() - 1
+               : declaration.parameters.size();
+    }
+
+    @Override
+    public boolean isFunction() {
+        return true;
+    }
+
+    @Override
+    public FunctionValue asFunction() {
+        return this;
+    }
+
+    @Override
+    public String type() {
+        return "function";
+    }
+
+    @Override
+    public boolean truthy() {
+        return true;
+    }
+
+    @Override
+    public String toString() {
+        return "<function " + getName() + ">";
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return this == obj;
+    }
+}package com.lox.value;
+
+public class NullValue extends Value {
+    public static final NullValue INSTANCE = new NullValue();
+    
+    private NullValue() {}
+    
+    @Override
+    public boolean isNull() { return true; }
+    
+    @Override
+    public String type() {
+        return "null";
+    }
+    
+    @Override
+    public boolean truthy() {
+        return false;
+    }
+    
+    @Override
+    public String toString() {
+        return "null";
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        return obj instanceof NullValue;
+    }
+}package com.lox.value;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class NumberValue extends Value {
+    private static final Map<Double, NumberValue> CACHE = new HashMap<>();
+    private static final int CACHE_MIN = -128;
+    private static final int CACHE_MAX = 127;
+    
+    private final double value;
+    
+    private NumberValue(double value) {
+        this.value = value;
+    }
+    
+    public static NumberValue of(double value) {
+        if (value == (long) value) {
+            long longValue = (long) value;
+            if (longValue >= CACHE_MIN && longValue <= CACHE_MAX) {
+                return CACHE.computeIfAbsent(value, NumberValue::new);
+            }
+        }
+        return new NumberValue(value);
+    }
+    
+    public double getValue() {
+        return value;
+    }
+    
+    @Override
+    public boolean isNumber() { return true; }
+    
+    @Override
+    public double asNumber() { return value; }
+    
+    @Override
+    public String type() {
+        return "number";
+    }
+    
+    @Override
+    public boolean truthy() {
+        return value != 0;
+    }
+    
+    @Override
+    public String toString() {
+        if (value == (long) value) {
+            return String.valueOf((long) value);
+        }
+        return String.valueOf(value);
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof NumberValue)) return false;
+        return Double.compare(value, ((NumberValue) obj).value) == 0;
+    }
+    
+    @Override
+    public int hashCode() {
+        return Double.hashCode(value);
+    }
+}package com.lox.value;
+
+import com.lox.ast.ReturnExpr;
+
+public class ReturnValue extends Value {
+    private final Value value;
+    private final ReturnExpr returnExpr;
+    
+    public ReturnValue(Value value, ReturnExpr returnExpr) {
+        this.value = value;
+        this.returnExpr = returnExpr;
+    }
+    
+    @Override
+    public boolean isReturn() { return true; }
+    
+    @Override
+    public ReturnValue asReturn() { return this; }
+    
+    public Value getValue() {
+        return value;
+    }
+    
+    public ReturnExpr getReturnExpr() {
+        return returnExpr;
+    }
+    
+    @Override
+    public String type() {
+        return "return";
+    }
+    
+    @Override
+    public boolean truthy() {
+        return true;
+    }
+    
+    @Override
+    public String toString() {
+        return "<return " + value.toString() + ">";
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof ReturnValue)) return false;
+        ReturnValue other = (ReturnValue) obj;
+        return value.equals(other.value) && returnExpr.equals(other.returnExpr);
+    }
+}package com.lox.value;
+
+import java.util.List;
+
+public class StringValue extends TableValue {
+    private final String value;
+    
+    public StringValue(String value) {
+        super();
+        this.value = value;
+        init();
+    }
+    
+    private void init() {
+        declare("length", NumberValue.of(value.length()));
+        
+        FunctionValue repeatFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                if (!arguments.get(0).isNumber()) {
+                    return new ThrowValue(new StringValue("repeat requer um número"), null);
+                }
+                int count = (int) arguments.get(0).asNumber();
+                if (count < 0) {
+                    return new ThrowValue(new StringValue("repeat não aceita número negativo"), null);
+                }
+                StringBuilder sb = new StringBuilder();
+                for (int i = 0; i < count; i++) {
+                    sb.append(value);
+                }
+                return new StringValue(sb.toString());
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "repeat"; }
+        };
+        declare("repeat", repeatFunc);
+        
+        FunctionValue toUpperCaseFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                return new StringValue(value.toUpperCase());
+            }
+            
+            @Override
+            public int arity() { return 0; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 0; }
+            @Override
+            public String getName() { return "toUpperCase"; }
+        };
+        declare("toUpperCase", toUpperCaseFunc);
+        
+        FunctionValue toLowerCaseFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                return new StringValue(value.toLowerCase());
+            }
+            
+            @Override
+            public int arity() { return 0; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 0; }
+            @Override
+            public String getName() { return "toLowerCase"; }
+        };
+        declare("toLowerCase", toLowerCaseFunc);
+        
+        FunctionValue substringFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                if (!arguments.get(0).isNumber()) {
+                    return new ThrowValue(new StringValue("substring requer índice inicial"), null);
+                }
+                if (!arguments.get(1).isNumber()) {
+                    return new ThrowValue(new StringValue("substring requer índice final"), null);
+                }
+                
+                int start = (int) arguments.get(0).asNumber();
+                int end = (int) arguments.get(1).asNumber();
+                
+                if (start < 0 || start > value.length() || end < start || end > value.length()) {
+                    return new ThrowValue(new StringValue("Índices inválidos para substring"), null);
+                }
+                
+                return new StringValue(value.substring(start, end));
+            }
+            
+            @Override
+            public int arity() { return 2; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 2; }
+            @Override
+            public String getName() { return "substring"; }
+        };
+        declare("substring", substringFunc);
+        
+        FunctionValue splitFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                String delimiter = arguments.get(0).toString();
+                String[] parts = value.split(delimiter);
+                ArrayValue result = new ArrayValue();
+                for (String part : parts) {
+                    result.add(new StringValue(part));
+                }
+                return result;
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "split"; }
+        };
+        declare("split", splitFunc);
+        
+        FunctionValue charAtFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                if (!arguments.get(0).isNumber()) {
+                    return new ThrowValue(new StringValue("charAt requer um índice"), null);
+                }
+                int index = (int) arguments.get(0).asNumber();
+                if (index < 0 || index >= value.length()) {
+                    return new ThrowValue(new StringValue("Índice fora dos limites"), null);
+                }
+                return new StringValue(String.valueOf(value.charAt(index)));
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "charAt"; }
+        };
+        declare("charAt", charAtFunc);
+        
+        FunctionValue indexOfFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                String search = arguments.get(0).toString();
+                return NumberValue.of(value.indexOf(search));
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "indexOf"; }
+        };
+        declare("indexOf", indexOfFunc);
+        
+        FunctionValue startsWithFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                String prefix = arguments.get(0).toString();
+                return BooleanValue.of(value.startsWith(prefix));
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "startsWith"; }
+        };
+        declare("startsWith", startsWithFunc);
+        
+        FunctionValue endsWithFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                String suffix = arguments.get(0).toString();
+                return BooleanValue.of(value.endsWith(suffix));
+            }
+            
+            @Override
+            public int arity() { return 1; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 1; }
+            @Override
+            public String getName() { return "endsWith"; }
+        };
+        declare("endsWith", endsWithFunc);
+        
+        FunctionValue trimFunc = new FunctionValue(null, null, null) {
+            @Override
+            public Value call(TableValue env, List<Value> arguments) {
+                return new StringValue(value.trim());
+            }
+            
+            @Override
+            public int arity() { return 0; }
+            @Override
+            public boolean hasVarargs() { return false; }
+            @Override
+            public int minArity() { return 0; }
+            @Override
+            public String getName() { return "trim"; }
+        };
+        declare("trim", trimFunc);
+    }
+    
+    public String getValue() {
+        return value;
+    }
+    
+    @Override
+    public boolean isString() { return true; }
+    
+    @Override
+    public String asString() { return value; }
+    
+    @Override
+    public String type() {
+        return "string";
+    }
+    
+    @Override
+    public boolean truthy() {
+        return !value.isEmpty();
+    }
+    
+    @Override
+    public String toString() {
+        return value;
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof StringValue)) return false;
+        return value.equals(((StringValue) obj).value);
+    }
+}package com.lox.value;
+
+import java.util.*;
+
+public class TableValue extends Value {
+	protected final Map<String, Value> values = new HashMap<>();
+	protected final Map<String, List<DecoratorValue>> decorators = new HashMap<>();
+	protected final TableValue parent;
+	protected final TableValue global;
+
+	public TableValue() {
+		this(null, null);
+	}
+
+	public TableValue(TableValue parent) {
+		this(parent, parent != null ? parent.getGlobal() : null);
+	}
+
+	public TableValue(TableValue parent, TableValue global) {
+		this.parent = parent;
+		this.global = global != null ? global : this;
+	}
+
+	@Override
+	public boolean isTable() {
+		return true;
+	}
+
+	@Override
+	public TableValue asTable() {
+		return this;
+	}
+
+	public Value get(String name) {
+		if (name.equals("global")) {
+			return global;
+		}
+
+		if (values.containsKey(name)) {
+			return values.get(name);
+		}
+
+		if (parent != null) {
+			return parent.get(name);
+		}
+
+		if (global != this && global.has(name)) {
+			return global.get(name);
+		}
+
+		return NullValue.INSTANCE;
+	}
+
+	public void declare(String name, Value value) {
+		declare(name, value, List.of());
+	}
+
+	public void declare(String name, Value value, List<DecoratorValue> decoratorList) {
+		if (name.equals("global")) {
+			throw new RuntimeException("Não é permitido redeclarar 'global'");
+		}
+
+		if (values.containsKey(name)) {
+			throw new RuntimeException("Variável já declarada: " + name);
+		}
+
+		// Armazena os decorators
+		if (decoratorList != null && !decoratorList.isEmpty()) {
+			decorators.put(name, new ArrayList<>(decoratorList));
+
+			// Aplica decorators de init em ordem
+			Value current = value;
+			for (DecoratorValue decor : decoratorList) {
+				Value result = decor.init(current);
+				if (result.isThrow()) {
+					throw new RuntimeException(result.toString());
+				}
+				current = result;
+			}
+			values.put(name, current);
+		} else {
+			values.put(name, value);
+		}
+	}
+
+	public void undeclare(String name) {
+		if (name.equals("global")) {
+			throw new RuntimeException("Não é permitido remover 'global'");
+		}
+
+		if (values.containsKey(name)) {
+			values.remove(name);
+			decorators.remove(name);
+		}
+	}
+
+	public void set(String name, Value newValue) {
+		if (name.equals("global")) {
+			throw new RuntimeException("Não é permitido modificar 'global'");
+		}
+
+		if (!values.containsKey(name)) {
+			if (parent != null) {
+				parent.set(name, newValue);
+				return;
+			}
+			if (global != this && global.has(name)) {
+				global.set(name, newValue);
+				return;
+			}
+			throw new RuntimeException("Variável não declarada: " + name);
+		}
+
+		List<DecoratorValue> decoratorList = decorators.get(name);
+		Value currentValue = values.get(name);
+		Value result = newValue;
+
+		if (decoratorList != null && !decoratorList.isEmpty()) {
+			for (int i = decoratorList.size() - 1; i >= 0; i--) {
+				DecoratorValue decor = decoratorList.get(i);
+				result = decor.write(currentValue, result);
+				if (result.isThrow()) {
+					return;
+				}
+			}
+		}
+		values.put(name, result);
+	}
+	
+	public boolean has(String name) {
+		if (name.equals("global")) {
+			return true;
+		}
+
+		if (values.containsKey(name)) {
+			return true;
+		}
+
+		if (parent != null) {
+			return parent.has(name);
+		}
+
+		if (global != this && global.has(name)) {
+			return true;
+		}
+
+		return false;
+	}
+
+	public boolean hasLocal(String name) {
+		if (name.equals("global")) {
+			return true;
+		}
+		return values.containsKey(name);
+	}
+
+	public TableValue getParent() {
+		return parent;
+	}
+
+	public TableValue getGlobal() {
+		return global;
+	}
+
+	public TableValue child() {
+		return new TableValue(this, global);
+	}
+
+	@Override
+	public String type() {
+		return "table";
+	}
+
+	@Override
+	public boolean truthy() {
+		return true;
+	}
+
+	@Override
+	public String toString() {
+		StringBuilder sb = new StringBuilder();
+		sb.append(System.identityHashCode(this));
+		sb.append("{");
+		boolean first = true;
+		for (Map.Entry<String, Value> entry : values.entrySet()) {
+			if (!first) sb.append(", ");
+			first = false;
+			sb.append(entry.getKey()).append(": ").append(entry.getValue().toString());
+		}
+		sb.append("}");
+		return sb.toString();
+	}
+
+	@Override
+	public boolean equals(Object obj) {
+		if (this == obj) return true;
+		if (!(obj instanceof TableValue)) return false;
+		TableValue other = (TableValue) obj;
+		return values.equals(other.values);
+	}
+}package com.lox.value;
+
+import com.lox.ast.ThrowExpr;
+
+public class ThrowValue extends Value {
+    private final Value value;
+    private final ThrowExpr throwExpr;
+    
+    public ThrowValue(Value value, ThrowExpr throwExpr) {
+        this.value = value;
+        this.throwExpr = throwExpr;
+    }
+    
+    @Override
+    public boolean isThrow() { return true; }
+    
+    @Override
+    public ThrowValue asThrow() { return this; }
+    
+    public Value getValue() {
+        return value;
+    }
+    
+    public ThrowExpr getThrowExpr() {
+        return throwExpr;
+    }
+    
+    @Override
+    public String type() {
+        return "throw";
+    }
+    
+    @Override
+    public boolean truthy() {
+        return false;
+    }
+    
+    @Override
+    public String toString() {
+        return "<throw " + value.toString() + ">";
+    }
+    
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) return true;
+        if (!(obj instanceof ThrowValue)) return false;
+        ThrowValue other = (ThrowValue) obj;
+        return value.equals(other.value) && throwExpr.equals(other.throwExpr);
+    }
+}package com.lox.value;
+
+public abstract class Value {
+	public abstract String type();
+	public abstract boolean truthy();
+
+	// Métodos de verificação de tipo
+	public boolean isNumber() {
+		return false;
+	}
+	public boolean isString() {
+		return false;
+	}
+	public boolean isBoolean() {
+		return false;
+	}
+	public boolean isNull() {
+		return false;
+	}
+	public boolean isTable() {
+		return false;
+	}
+	public boolean isArray() {
+		return false;
+	}
+	public boolean isFunction() {
+		return false;
+	}
+	public boolean isReturn() {
+		return false;
+	}
+	public boolean isThrow() {
+		return false;
+	}
+	public boolean isBreak() {
+		return false;
+	}
+	public boolean isContinue() {
+		return false;
+	}
+	public boolean isDecorator() {
+		return false;
+	}
+
+	// Métodos de acesso para tipos específicos
+	public double asNumber() {
+		throw new RuntimeException("Não é um número");
+	}
+	public String asString() {
+		throw new RuntimeException("Não é uma string");
+	}
+	public boolean asBoolean() {
+		throw new RuntimeException("Não é um booleano");
+	}
+	public TableValue asTable() {
+		throw new RuntimeException("Não é uma tabela");
+	}
+	public ArrayValue asArray() {
+		throw new RuntimeException("Não é um array");
+	}
+	public FunctionValue asFunction() {
+		throw new RuntimeException("Não é uma função");
+	}
+	public ReturnValue asReturn() {
+		throw new RuntimeException("Não é um return");
+	}
+	public ThrowValue asThrow() {
+		throw new RuntimeException("Não é um throw");
+	}
+	public BreakValue asBreak() {
+		throw new RuntimeException("Não é um break");
+	}
+	public ContinueValue asContinue() {
+		throw new RuntimeException("Não é um continue");
+	}
+	public DecoratorValue asDecorator() {
+		throw new RuntimeException("Não é um decorator");
+	}
+
+	@Override
+	public abstract String toString();
+	
+	@Override
+	public abstract boolean equals(Object obj);
+}package com.lox.value;
+
+public class ContinueValue extends Value {
+    public static final ContinueValue INSTANCE = new ContinueValue();
+    
+    private ContinueValue() {}
+    
+    @Override
+    public boolean isContinue() { return true; }
+    
+    @Override
+    public ContinueValue asContinue() { return this; }
+    
+    @Override
+    public String type() { return "continue"; }
+    
+    @Override
+    public boolean truthy() { return false; }
+    
+    @Override
+    public String toString() { return "<continue>"; }
+    
+    @Override
+    public boolean equals(Object obj) {
+        return this == obj;
+    }
+}package com.lox.value;
+
+import java.util.*;
+
+public class DecoratorValue extends TableValue {
+    private DecoratorValue(TableValue parent) {
+        super(parent);
+    }
+    
+    public static DecoratorValue of(TableValue table) {
+        DecoratorValue decorator = new DecoratorValue(table.getParent());
+        for (Map.Entry<String, Value> entry : table.asTable().values.entrySet()) {
+            decorator.declare(entry.getKey(), entry.getValue());
+        }
+        return decorator;
+    }
+    
+    public Value init(Value target) {
+        if (has("init")) {
+            Value initFunc = get("init");
+            if (initFunc.isFunction()) {
+                List<Value> args = new ArrayList<>();
+                args.add(target);
+                return initFunc.asFunction().call(this, args);
+            }
+        }
+        return target;
+    }
+    
+    public Value write(Value current, Value newValue) {
+        if (has("write")) {
+            Value writeFunc = get("write");
+            if (writeFunc.isFunction()) {
+                List<Value> args = new ArrayList<>();
+                args.add(current);
+                args.add(newValue);
+                return writeFunc.asFunction().call(this, args);
+            }
+        }
+        return newValue;
+    }
+    
+    @Override
+    public String type() {
+        return "decorator";
+    }
+    
+    @Override
+    public boolean isDecorator() { return true; }
+    
+    @Override
+    public DecoratorValue asDecorator() { return this; }
+    
+    @Override
+    public String toString() {
+        return "Decorator(" + super.toString() + ")";
+    }
+}package com.lox.util;
+
+public class Position {
+    private final int line;
+    private final int column;
+    private final int start;
+    private final int end;
+    
+    public static final Position ZERO = new Position(0, 0, 0, 0);
+    
+    public Position(int line, int column, int start, int end) {
+        this.line = line;
+        this.column = column;
+        this.start = start;
+        this.end = end;
+    }
+    
+    public Position(int line, int start, int end) {
+        this(line, start + 1, start, end);
+    }
+    
+    public int getLine() { return line; }
+    public int getColumn() { return column; }
+    public int getStart() { return start; }
+    public int getEnd() { return end; }
+    
+    public static Position between(Position start, Position end) {
+        return new Position(start.line, start.column, start.start, end.end);
+    }
+    
+    @Override
+    public String toString() {
+        return String.format("line %d, col %d, pos %d-%d", line, column, start, end);
+    }
+}package com.lox.util;
+
+import java.util.Objects;
+
+public final class Pair<A, B> {
+	private final A first;
+	private final B second;
+
+	private Pair(A first, B second) {
+		this.first = first;
+		this.second = second;
+	}
+
+	public static <A, B> Pair<A, B> of(A first, B second) {
+		return new Pair<>(first, second);
+	}
+
+	public A getFirst() {
+		return first;
+	}
+
+	public B getSecond() {
+		return second;
+	}
+
+	@Override
+	public boolean equals(Object o) {
+		if (this == o) return true;
+		if (!(o instanceof Pair<?, ?>)) return false;
+
+		Pair<?, ?> pair = (Pair<?, ?>) o;
+
+		return Objects.equals(first, pair.first) &&
+			   Objects.equals(second, pair.second);
+	}
+
+	@Override
+	public int hashCode() {
+		return Objects.hash(first, second);
+	}
+
+	@Override
+	public String toString() {
+		return "Pair[" + first + ", " + second + "]";
+	}
+}package com.lox.executor;
+
+import com.lox.ast.*;
+import com.lox.value.*;
+import com.lox.util.*;
+import java.util.*;
+
+public class Executor implements ExprVisitor<Value>, Callable {
+	private TableValue current;
+	private final TableValue global;
+
+	public Executor() {
+		this.global = new TableValue();
+		this.current = global;
+		defineBuiltins();
+	}
+
+	public TableValue getGlobal() {
+		return global;
+	}
+
+	private void defineBuiltins() {
+		// println
+		FunctionValue println = new FunctionValue(null, this, global) {
+			@Override
+			public Value call(TableValue env, List<Value> arguments) {
+				System.out.println(arguments.get(0).toString());
+				return NullValue.INSTANCE;
+			}
+			
+			@Override
+			public int arity() { return 1; }
+			@Override
+			public boolean hasVarargs() { return false; }
+			@Override
+			public int minArity() { return 1; }
+			@Override
+			public String getName() { return "println"; }
+		};
+		global.declare("println", println);
+		
+		// print
+		FunctionValue print = new FunctionValue(null, this, global) {
+			@Override
+			public Value call(TableValue env, List<Value> arguments) {
+				System.out.print(arguments.get(0).toString());
+				return NullValue.INSTANCE;
+			}
+			
+			@Override
+			public int arity() { return 1; }
+			@Override
+			public boolean hasVarargs() { return false; }
+			@Override
+			public int minArity() { return 1; }
+			@Override
+			public String getName() { return "print"; }
+		};
+		global.declare("print", print);
+		
+		// typeof
+		FunctionValue typeof = new FunctionValue(null, this, global) {
+			@Override
+			public Value call(TableValue env, List<Value> arguments) {
+				return new StringValue(arguments.get(0).type());
+			}
+			
+			@Override
+			public int arity() { return 1; }
+			@Override
+			public boolean hasVarargs() { return false; }
+			@Override
+			public int minArity() { return 1; }
+			@Override
+			public String getName() { return "typeof"; }
+		};
+		global.declare("typeof", typeof);
+		
+		// sqrt
+		FunctionValue sqrt = new FunctionValue(null, this, global) {
+			@Override
+			public Value call(TableValue env, List<Value> arguments) {
+				return NumberValue.of(Math.sqrt(arguments.get(0).asNumber()));
+			}
+			
+			@Override
+			public int arity() { return 1; }
+			@Override
+			public boolean hasVarargs() { return false; }
+			@Override
+			public int minArity() { return 1; }
+			@Override
+			public String getName() { return "sqrt"; }
+		};
+		global.declare("sqrt", sqrt);
+	}
+
+	private ThrowValue throwError(String message, Position position) {
+		return new ThrowValue(new StringValue(message + " em " + position), null);
+	}
+
+	private ThrowValue throwError(String message) {
+		return new ThrowValue(new StringValue(message), null);
+	}
+
+	private TableValue prepareFunctionExecution(
+		TableValue closure,
+		List<String> params,
+		boolean hasVarargs,
+		List<Value> arguments) {
+
+		TableValue newTable = closure.child();
+
+		if (params != null && !params.isEmpty()) {
+			int paramCount = params.size();
+			int argCount = arguments.size();
+
+			if (hasVarargs) {
+				int regularParams = paramCount - 1;
+
+				for (int i = 0; i < regularParams; i++) {
+					if (i < argCount) {
+						newTable.declare(params.get(i), arguments.get(i));
+					} else {
+						newTable.declare(params.get(i), NullValue.INSTANCE);
+					}
+				}
+
+				List<Value> varArgsArray = new ArrayList<>();
+				for (int i = regularParams; i < argCount; i++) {
+					varArgsArray.add(arguments.get(i));
+				}
+				newTable.declare(params.get(regularParams), new ArrayValue(varArgsArray));
+
+			} else {
+				for (int i = 0; i < paramCount; i++) {
+					if (i < argCount) {
+						newTable.declare(params.get(i), arguments.get(i));
+					} else {
+						newTable.declare(params.get(i), NullValue.INSTANCE);
+					}
+				}
+			}
+		}
+
+		return newTable;
+	}
+
+	public Value executeFunction(FunDeclExpr function, TableValue env, TableValue closure) {
+		return executeFunction(function, env, new ArrayList<>(), closure);
+	}
+
+	public Value executeFunction(FunDeclExpr function, TableValue callEnv,
+								 List<Value> arguments, TableValue closure) {
+		int minArgs = function.hasVarargs
+					  ? function.parameters.size() - 1
+					  : function.parameters.size();
+		int maxArgs = function.hasVarargs
+					  ? Integer.MAX_VALUE
+					  : function.parameters.size();
+		int argCount = arguments.size();
+
+		if (argCount < minArgs) {
+			String funcName = function.name != null ? function.name : "anonymous";
+			return throwError("Função " + funcName +
+							  " espera no mínimo " + minArgs + " argumentos, recebeu " + argCount);
+		}
+
+		if (!function.hasVarargs && argCount != maxArgs) {
+			String funcName = function.name != null ? function.name : "anonymous";
+			return throwError("Função " + funcName +
+							  " espera exatamente " + maxArgs + " argumentos, recebeu " + argCount);
+		}
+
+		TableValue funcEnv = prepareFunctionExecution(
+								 closure,
+								 function.parameters,
+								 function.hasVarargs,
+								 arguments
+							 );
+
+		TableValue previous = this.current;
+		this.current = funcEnv;
+
+		Value result = NullValue.INSTANCE;
+
+		for (Expr e : function.getBody()) {
+			Value eval = e.accept(this);
+
+			if (eval.isReturn()) {
+				ReturnValue ret = eval.asReturn();
+				if (ret.getReturnExpr().enclosingFunction == function) {
+					this.current = previous;
+					return ret.getValue();
+				}
+				this.current = previous;
+				return ret;
+			}
+
+			if (eval.isThrow()) {
+				this.current = previous;
+				return eval;
+			}
+
+			result = eval;
+		}
+
+		this.current = previous;
+		return result;
+	}
+
+	private Value execute(List<Expr> statements, TableValue env) {
+		TableValue previous = this.current;
+		this.current = env.child();
+
+		Value result = NullValue.INSTANCE;
+
+		for (Expr e : statements) {
+			Value eval = e.accept(this);
+
+			if (eval.isReturn() || eval.isThrow()) {
+				this.current = previous;
+				return eval;
+			}
+
+			if (eval.isBreak() || eval.isContinue()) {
+				this.current = previous;
+				return eval;
+			}
+
+			result = eval;
+		}
+
+		this.current = previous;
+		return result;
+	}
+
+	public Value execute(List<Expr> statements) {
+		return execute(statements, current);
+	}
+
+	@Override
+	public Value visitLiteralExpr(LiteralExpr expr) {
+		Object value = expr.value;
+		if (value == null) return NullValue.INSTANCE;
+		if (value instanceof Double) return NumberValue.of((Double) value);
+		if (value instanceof String) return new StringValue((String) value);
+		if (value instanceof Boolean) return BooleanValue.of((Boolean) value);
+		return new StringValue(value.toString());
+	}
+
+	@Override
+	public Value visitVarExpr(VarExpr expr) {
+		if (current.has(expr.name)) {
+			return current.get(expr.name);
+		}
+		return throwError("Variável não definida: " + expr.name, expr.getPosition());
+	}
+
+	@Override
+	public Value visitAssignExpr(AssignExpr expr) {
+		Value value = expr.value.accept(this);
+		if (value.isReturn() || value.isThrow()) return value;
+
+		if (!current.has(expr.name)) {
+			return throwError("Variável não definida: " + expr.name, expr.getPosition());
+		}
+
+		try {
+			current.set(expr.name, value);
+			return value;
+		} catch (RuntimeException e) {
+			return throwError(e.getMessage(), expr.getPosition());
+		}
+	}
+
+	@Override
+	public Value visitVarDeclExpr(VarDeclExpr expr) {
+		Value value = NullValue.INSTANCE;
+		if (expr.value != null) {
+			Value val = expr.value.accept(this);
+			if (val.isReturn() || val.isThrow()) return val;
+			value = val;
+		}
+		
+		// Processa os decorators
+		List<DecoratorValue> decoratorValues = new ArrayList<>();
+		for (Expr decor : expr.decorators) {
+			Value decorResult = decor.accept(this);
+			if (decorResult.isReturn() || decorResult.isThrow()) return decorResult;
+			
+			if (!(decorResult instanceof DecoratorValue)) {
+				return throwError("Decorator deve retornar um DecoratorValue", expr.getPosition());
+			}
+			
+			decoratorValues.add((DecoratorValue) decorResult);
+		}
+
+		try {
+			current.declare(expr.name, value, decoratorValues);
+			return value;
+		} catch (RuntimeException e) {
+			return throwError(e.getMessage(), expr.getPosition());
+		}
+	}
+
+	@Override
+	public Value visitFunDeclExpr(FunDeclExpr expr) {
+		FunctionValue func = new FunctionValue(expr, this, current);
+		try {
+			if (!expr.anonymous)
+				current.declare(expr.name, func);
+			return func;
+		} catch (RuntimeException e) {
+			return throwError(e.getMessage(), expr.getPosition());
+		}
+	}
+
+	@Override
+	public Value visitDecorExpr(DecorExpr expr) {
+		// Obtém a função decorator do escopo atual
+		Value decorFunc = current.get(expr.name);
+		if (decorFunc.isThrow()) return decorFunc;
+		
+		if (!decorFunc.isFunction()) {
+			return throwError("Decorator '" + expr.name + "' não é uma função", expr.getPosition());
+		}
+		
+		// Avalia os argumentos
+		List<Value> args = new ArrayList<>();
+		if (expr.arguments != null) {
+			for (Expr arg : expr.arguments) {
+				Value argVal = arg.accept(this);
+				if (argVal.isReturn() || argVal.isThrow()) return argVal;
+				args.add(argVal);
+			}
+		}
+		
+		// Chama a função decorator, que deve retornar uma tabela
+		Value result = decorFunc.asFunction().call(current, args);
+		if (result.isReturn() || result.isThrow()) return result;
+		
+		if (!result.isTable()) {
+			return throwError("Decorator '" + expr.name + "' deve retornar uma tabela", expr.getPosition());
+		}
+		
+		// Cria e retorna um DecoratorValue usando of()
+		return DecoratorValue.of(result.asTable());
+	}
+
+	@Override
+	public Value visitObjectExpr(ObjectExpr expr) {
+		TableValue previous = this.current;
+		TableValue blockEnv = this.current.child();
+		this.current = blockEnv;
+
+		for (Expr e : expr.declarations) {
+			Value eval = e.accept(this);
+
+			if (eval.isReturn() || eval.isThrow() || eval.isBreak() || eval.isContinue()) {
+				this.current = previous;
+				return eval;
+			}
+		}
+
+		this.current = previous;
+		return blockEnv;
+	}
+
+	@Override
+	public Value visitReturnExpr(ReturnExpr expr) {
+		if (expr.value != null) {
+			Value value = expr.value.accept(this);
+			if (value.isThrow()) return value;
+			return new ReturnValue(value, expr);
+		}
+		return new ReturnValue(NullValue.INSTANCE, expr);
+	}
+
+	@Override
+	public Value visitThrowExpr(ThrowExpr expr) {
+		if (expr.value != null) {
+			Value value = expr.value.accept(this);
+			if (value.isReturn()) return value;
+			return new ThrowValue(value, expr);
+		}
+		return new ThrowValue(NullValue.INSTANCE, expr);
+	}
+
+	@Override
+	public Value visitIfExpr(IfExpr expr) {
+		Value condition = expr.condition.accept(this);
+		if (condition.isReturn() || condition.isThrow()) return condition;
+
+		if (condition.truthy()) {
+			TableValue previous = this.current;
+			TableValue branchEnv = this.current.child();
+			this.current = branchEnv;
+
+			for (Expr e : expr.thenBranch) {
+				Value eval = e.accept(this);
+
+				if (eval.isReturn() || eval.isThrow() || eval.isBreak() || eval.isContinue()) {
+					this.current = previous;
+					return eval;
+				}
+			}
+
+			this.current = previous;
+			return NullValue.INSTANCE;
+		} else if (expr.elseBranch != null) {
+			TableValue previous = this.current;
+			TableValue branchEnv = this.current.child();
+			this.current = branchEnv;
+
+			for (Expr e : expr.elseBranch) {
+				Value eval = e.accept(this);
+
+				if (eval.isReturn() || eval.isThrow() || eval.isBreak() || eval.isContinue()) {
+					this.current = previous;
+					return eval;
+				}
+			}
+
+			this.current = previous;
+			return NullValue.INSTANCE;
+		}
+
+		return NullValue.INSTANCE;
+	}
+
+	@Override
+	public Value visitWhileExpr(WhileExpr expr) {
+		boolean shouldBreak = false;
+
+		while (!shouldBreak) {
+			Value condition = expr.condition.accept(this);
+
+			if (condition.isReturn() || condition.isThrow()) return condition;
+
+			if (!condition.truthy()) {
+				break;
+			}
+
+			TableValue previous = this.current;
+			TableValue loopEnv = this.current.child();
+			this.current = loopEnv;
+
+			for (Expr e : expr.body) {
+				Value eval = e.accept(this);
+
+				if (eval.isReturn() || eval.isThrow()) {
+					this.current = previous;
+					return eval;
+				}
+
+				if (eval.isBreak()) {
+					shouldBreak = true;
+					break;
+				}
+
+				if (eval.isContinue()) {
+					break;
+				}
+			}
+
+			this.current = previous;
+		}
+
+		return NullValue.INSTANCE;
+	}
+
+	@Override
+	public Value visitBreakExpr(BreakExpr expr) {
+		return BreakValue.INSTANCE;
+	}
+
+	@Override
+	public Value visitContinueExpr(ContinueExpr expr) {
+		return ContinueValue.INSTANCE;
+	}
+
+	@Override
+	public Value visitBinaryExpr(BinaryExpr expr) {
+		String op = expr.operator;
+
+		if (op.equals("??")) {
+			Value left = expr.left.accept(this);
+			if (left.isReturn() || left.isThrow()) return left;
+
+			if (!left.isNull()) {
+				return left;
+			}
+
+			Value right = expr.right.accept(this);
+			if (right.isReturn() || right.isThrow()) return right;
+			return right;
+		}
+
+		Value left = expr.left.accept(this);
+		if (left.isReturn() || left.isThrow()) return left;
+
+		Value right = expr.right.accept(this);
+		if (right.isReturn() || right.isThrow()) return right;
+
+		try {
+			switch (op) {
+			case "+":
+				if (left.isNumber() && right.isNumber()) {
+					return NumberValue.of(left.asNumber() + right.asNumber());
+				}
+				return new StringValue(left.toString() + right.toString());
+			case "-":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador - requer números", expr.getPosition());
+				}
+				return NumberValue.of(left.asNumber() - right.asNumber());
+			case "*":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador * requer números", expr.getPosition());
+				}
+				return NumberValue.of(left.asNumber() * right.asNumber());
+			case "/":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador / requer números", expr.getPosition());
+				}
+				double r = right.asNumber();
+				if (r == 0) return throwError("Divisão por zero", expr.getPosition());
+				return NumberValue.of(left.asNumber() / r);
+			case "%":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador % requer números", expr.getPosition());
+				}
+				return NumberValue.of(left.asNumber() % right.asNumber());
+			case "==":
+				return BooleanValue.of(left.equals(right));
+			case "!=":
+				return BooleanValue.of(!left.equals(right));
+			case "<":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador < requer números", expr.getPosition());
+				}
+				return BooleanValue.of(left.asNumber() < right.asNumber());
+			case ">":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador > requer números", expr.getPosition());
+				}
+				return BooleanValue.of(left.asNumber() > right.asNumber());
+			case "<=":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador <= requer números", expr.getPosition());
+				}
+				return BooleanValue.of(left.asNumber() <= right.asNumber());
+			case ">=":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador >= requer números", expr.getPosition());
+				}
+				return BooleanValue.of(left.asNumber() >= right.asNumber());
+			default:
+				return throwError("Operador desconhecido: " + op, expr.getPosition());
+			}
+		} catch (Exception e) {
+			return throwError("Operação inválida: " + op, expr.getPosition());
+		}
+	}
+
+	@Override
+	public Value visitUnaryExpr(UnaryExpr expr) {
+		Value operand = expr.operand.accept(this);
+		if (operand.isReturn() || operand.isThrow()) return operand;
+
+		String op = expr.operator;
+
+		try {
+			if (op.equals("++") || op.equals("--")) {
+				if (!operand.isNumber()) {
+					return throwError("Incremento/decremento requer número", expr.getPosition());
+				}
+
+				double val = operand.asNumber();
+				double newVal = op.equals("++") ? val + 1 : val - 1;
+
+				Expr target = expr.operand;
+				Value newValue = NumberValue.of(newVal);
+
+				try {
+					if (target instanceof VarExpr) {
+						VarExpr var = (VarExpr) target;
+						if (!current.has(var.name)) {
+							return throwError("Variável não definida: " + var.name, expr.getPosition());
+						}
+						current.set(var.name, newValue);
+					} else if (target instanceof GetExpr) {
+						GetExpr get = (GetExpr) target;
+						Value object = get.object.accept(this);
+						if (object.isReturn() || object.isThrow()) return object;
+						if (object.isTable()) {
+							if (!object.asTable().has(get.name)) {
+								return throwError("Propriedade não definida: " + get.name, expr.getPosition());
+							}
+							object.asTable().set(get.name, newValue);
+						} else {
+							return throwError("Apenas tabelas podem ter campos", expr.getPosition());
+						}
+					} else if (target instanceof IndexGetExpr) {
+						IndexGetExpr idxGet = (IndexGetExpr) target;
+						Value array = idxGet.array.accept(this);
+						if (array.isReturn() || array.isThrow()) return array;
+						Value index = idxGet.index.accept(this);
+						if (index.isReturn() || index.isThrow()) return index;
+						if (array.isArray() && index.isNumber()) {
+							int idx = (int) index.asNumber();
+							if (idx < 0 || idx >= array.asArray().length()) {
+								return throwError("Índice fora dos limites: " + idx, expr.getPosition());
+							}
+							array.asArray().set(idx, newValue);
+						} else {
+							return throwError("Índice inválido", expr.getPosition());
+						}
+					} else {
+						return throwError("Alvo de incremento/decremento inválido", expr.getPosition());
+					}
+				} catch (RuntimeException e) {
+					return throwError(e.getMessage(), expr.getPosition());
+				}
+
+				if (expr.isPrefix()) {
+					return NumberValue.of(newVal);
+				} else {
+					return NumberValue.of(val);
+				}
+			}
+
+			switch (op) {
+			case "-":
+				if (!operand.isNumber()) {
+					return throwError("Operador - requer número", expr.getPosition());
+				}
+				return NumberValue.of(-operand.asNumber());
+			case "!":
+				return BooleanValue.of(!operand.truthy());
+			default:
+				return throwError("Operador unário desconhecido: " + op, expr.getPosition());
+			}
+		} catch (Exception e) {
+			return throwError("Operação inválida: " + op, expr.getPosition());
+		}
+	}
+
+	@Override
+	public Value visitLogicalExpr(LogicalExpr expr) {
+		Value left = expr.left.accept(this);
+		if (left.isReturn() || left.isThrow()) return left;
+
+		String op = expr.operator;
+
+		if (op.equals("||")) {
+			if (left.truthy()) return left;
+			return expr.right.accept(this);
+		} else {
+			if (!left.truthy()) return left;
+			return expr.right.accept(this);
+		}
+	}
+
+	@Override
+	public Value visitTernaryExpr(TernaryExpr expr) {
+		Value condition = expr.condition.accept(this);
+		if (condition.isReturn() || condition.isThrow()) return condition;
+
+		if (condition.truthy()) {
+			return expr.thenExpr.accept(this);
+		} else {
+			return expr.elseExpr.accept(this);
+		}
+	}
+
+	@Override
+	public Value visitCallExpr(CallExpr expr) {
+		Value callee = expr.callee.accept(this);
+		if (callee.isReturn() || callee.isThrow()) return callee;
+
+		List<Value> arguments = new ArrayList<>();
+		for (Expr arg : expr.arguments) {
+			Value argVal = arg.accept(this);
+			if (argVal.isReturn() || argVal.isThrow()) return argVal;
+			arguments.add(argVal);
+		}
+
+		if (callee.isFunction()) {
+			FunctionValue function = callee.asFunction();
+
+			int minArgs = function.minArity();
+			int maxArgs = function.hasVarargs() ? Integer.MAX_VALUE : function.arity();
+			int argCount = arguments.size();
+
+			if (argCount < minArgs) {
+				return throwError(
+						   "Função " + function.getName() +
+						   " espera no mínimo " + minArgs + " argumentos, recebeu " + argCount,
+						   expr.getPosition()
+					   );
+			}
+
+			if (!function.hasVarargs() && argCount != maxArgs) {
+				return throwError(
+						   "Função " + function.getName() +
+						   " espera exatamente " + maxArgs + " argumentos, recebeu " + argCount,
+						   expr.getPosition()
+					   );
+			}
+
+			try {
+				return function.call(current, arguments);
+			} catch (RuntimeException e) {
+				return throwError(e.getMessage(), expr.getPosition());
+			}
+		}
+
+		return throwError("Expressão não é chamável: " + callee.type(), expr.getPosition());
+	}
+
+	@Override
+	public Value visitGetExpr(GetExpr expr) {
+		Value object = expr.object.accept(this);
+		if (object.isReturn() || object.isThrow()) return object;
+
+		if (object.isTable()) {
+			if (!object.asTable().has(expr.name)) {
+				return throwError("Propriedade não definida: " + expr.name, expr.getPosition());
+			}
+			try {
+				return object.asTable().get(expr.name);
+			} catch (RuntimeException e) {
+				return throwError(e.getMessage(), expr.getPosition());
+			}
+		}
+
+		return throwError("Apenas tabelas têm propriedades", expr.getPosition());
+	}
+
+	@Override
+	public Value visitSetExpr(SetExpr expr) {
+		Value object = expr.object.accept(this);
+		if (object.isReturn() || object.isThrow()) return object;
+
+		Value value = expr.value.accept(this);
+		if (value.isReturn() || value.isThrow()) return value;
+
+		if (object.isTable()) {
+			try {
+				object.asTable().set(expr.name, value);
+				return value;
+			} catch (RuntimeException e) {
+				return throwError(e.getMessage(), expr.getPosition());
+			}
+		}
+
+		return throwError("Apenas tabelas podem ter campos", expr.getPosition());
+	}
+
+	@Override
+	public Value visitIndexGetExpr(IndexGetExpr expr) {
+		Value array = expr.array.accept(this);
+		if (array.isReturn() || array.isThrow()) return array;
+
+		Value index = expr.index.accept(this);
+		if (index.isReturn() || index.isThrow()) return index;
+
+		if (!array.isArray()) {
+			return throwError("Índice só pode ser usado em arrays", expr.getPosition());
+		}
+
+		if (!index.isNumber()) {
+			return throwError("Índice deve ser número", expr.getPosition());
+		}
+
+		int idx = (int) index.asNumber();
+		try {
+			return array.asArray().get(idx);
+		} catch (RuntimeException e) {
+			return throwError(e.getMessage(), expr.getPosition());
+		}
+	}
+
+	@Override
+	public Value visitIndexSetExpr(IndexSetExpr expr) {
+		Value array = expr.array.accept(this);
+		if (array.isReturn() || array.isThrow()) return array;
+
+		Value index = expr.index.accept(this);
+		if (index.isReturn() || index.isThrow()) return index;
+
+		Value value = expr.value.accept(this);
+		if (value.isReturn() || value.isThrow()) return value;
+
+		if (!array.isArray()) {
+			return throwError("Índice só pode ser usado em arrays", expr.getPosition());
+		}
+
+		if (!index.isNumber()) {
+			return throwError("Índice deve ser número", expr.getPosition());
+		}
+
+		int idx = (int) index.asNumber();
+		try {
+			array.asArray().set(idx, value);
+			return value;
+		} catch (RuntimeException e) {
+			return throwError(e.getMessage(), expr.getPosition());
+		}
+	}
+
+	@Override
+	public Value visitArrayExpr(ArrayExpr expr) {
+		List<Value> elements = new ArrayList<>();
+		for (Expr element : expr.elements) {
+			Value elem = element.accept(this);
+			if (elem.isReturn() || elem.isThrow()) return elem;
+			elements.add(elem);
+		}
+		return new ArrayValue(elements);
+	}
+
+	@Override
+	public Value visitParenthesisExpr(ParenthesisExpr expr) {
+		return expr.expression.accept(this);
+	}
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public abstract class Expr {
+    protected Position position;
+    
+    protected Expr() {
+        this(null);
+    }
+    
+    protected Expr(Position position) {
+        this.position = position;
+    }
+    
+    public Position getPosition() {
+        return position;
+    }
+    
+    public void setPosition(Position position) {
+        this.position = position;
+    }
+    
+    public <T> T accept(ExprVisitor<T> visitor) {
+        if (this instanceof LiteralExpr) {
+            return visitor.visitLiteralExpr((LiteralExpr) this);
+        }
+        if (this instanceof DecorExpr) {
+            return visitor.visitDecorExpr((DecorExpr) this);
+        }
+        if (this instanceof VarExpr) {
+            return visitor.visitVarExpr((VarExpr) this);
+        }
+        if (this instanceof AssignExpr) {
+            return visitor.visitAssignExpr((AssignExpr) this);
+        }
+        if (this instanceof BinaryExpr) {
+            return visitor.visitBinaryExpr((BinaryExpr) this);
+        }
+        if (this instanceof UnaryExpr) {
+            return visitor.visitUnaryExpr((UnaryExpr) this);
+        }
+        if (this instanceof LogicalExpr) {
+            return visitor.visitLogicalExpr((LogicalExpr) this);
+        }
+        if (this instanceof TernaryExpr) {
+            return visitor.visitTernaryExpr((TernaryExpr) this);
+        }
+        if (this instanceof CallExpr) {
+            return visitor.visitCallExpr((CallExpr) this);
+        }
+        if (this instanceof GetExpr) {
+            return visitor.visitGetExpr((GetExpr) this);
+        }
+        if (this instanceof SetExpr) {
+            return visitor.visitSetExpr((SetExpr) this);
+        }
+        if (this instanceof IndexGetExpr) {
+            return visitor.visitIndexGetExpr((IndexGetExpr) this);
+        }
+        if (this instanceof IndexSetExpr) {
+            return visitor.visitIndexSetExpr((IndexSetExpr) this);
+        }
+        if (this instanceof ArrayExpr) {
+            return visitor.visitArrayExpr((ArrayExpr) this);
+        }
+        if (this instanceof ObjectExpr) {
+            return visitor.visitObjectExpr((ObjectExpr) this);
+        }
+        if (this instanceof VarDeclExpr) {
+            return visitor.visitVarDeclExpr((VarDeclExpr) this);
+        }
+        if (this instanceof FunDeclExpr) {
+            return visitor.visitFunDeclExpr((FunDeclExpr) this);
+        }
+        if (this instanceof ReturnExpr) {
+            return visitor.visitReturnExpr((ReturnExpr) this);
+        }
+        if (this instanceof ThrowExpr) {
+            return visitor.visitThrowExpr((ThrowExpr) this);
+        }
+        if (this instanceof IfExpr) {
+            return visitor.visitIfExpr((IfExpr) this);
+        }
+        if (this instanceof WhileExpr) {
+            return visitor.visitWhileExpr((WhileExpr) this);
+        }
+        if (this instanceof BreakExpr) {
+            return visitor.visitBreakExpr((BreakExpr) this);
+        }
+        if (this instanceof ContinueExpr) {
+            return visitor.visitContinueExpr((ContinueExpr) this);
+        }
+        if (this instanceof ParenthesisExpr) {
+            return visitor.visitParenthesisExpr((ParenthesisExpr) this);
+        }
+        
+        throw new UnsupportedOperationException("Unknown expression type: " + this.getClass().getName());
+    }
+}package com.lox.ast;
+
+public interface ExprVisitor<T> {
+    T visitLiteralExpr(LiteralExpr expr);
+    T visitDecorExpr(DecorExpr expr);
+    T visitVarExpr(VarExpr expr);
+    T visitAssignExpr(AssignExpr expr);
+    T visitBinaryExpr(BinaryExpr expr);
+    T visitUnaryExpr(UnaryExpr expr);
+    T visitLogicalExpr(LogicalExpr expr);
+    T visitTernaryExpr(TernaryExpr expr);
+    T visitCallExpr(CallExpr expr);
+    T visitGetExpr(GetExpr expr);
+    T visitSetExpr(SetExpr expr);
+    T visitIndexGetExpr(IndexGetExpr expr);
+    T visitIndexSetExpr(IndexSetExpr expr);
+    T visitArrayExpr(ArrayExpr expr);
+    T visitObjectExpr(ObjectExpr expr);
+    T visitVarDeclExpr(VarDeclExpr expr);
+    T visitFunDeclExpr(FunDeclExpr expr);
+    T visitReturnExpr(ReturnExpr expr);
+    T visitThrowExpr(ThrowExpr expr);
+    T visitIfExpr(IfExpr expr);
+    T visitWhileExpr(WhileExpr expr);
+    T visitBreakExpr(BreakExpr expr);
+    T visitContinueExpr(ContinueExpr expr);
+    T visitParenthesisExpr(ParenthesisExpr expr);
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class LiteralExpr extends Expr {
+    public final Object value;
+    
+    public LiteralExpr(Object value, Position position) {
+        super(position);
+        this.value = value;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class VarExpr extends Expr {
+    public final String name;
+    
+    public VarExpr(String name, Position position) {
+        super(position);
+        this.name = name;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+import java.util.List;
+
+public class ObjectExpr extends Expr {
+    public final List<Expr> declarations;
+    
+    public ObjectExpr(List<Expr> declarations, Position position) {
+        super(position);
+        this.declarations = declarations != null ? declarations : List.of();
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class AssignExpr extends Expr {
+    public final String name;
+    public final Expr value;
+    
+    public AssignExpr(String name, Expr value, Position position) {
+        super(position);
+        this.name = name;
+        this.value = value;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+import java.util.List;
+
+public class VarDeclExpr extends Expr {
+	public final String name;
+	public final Expr value;
+	public final List<Expr> decorators;
+
+	public VarDeclExpr(String name, Expr value, List<Expr> decorators, Position position) {
+		super(position);
+		this.name = name;
+		this.value = value;
+		this.decorators = decorators != null ? decorators : List.of();
+	}
+}package com.lox.ast;
+
+import com.lox.util.Position;
+import java.util.List;
+
+public class FunDeclExpr extends Expr {
+	public final String name;
+	public final boolean anonymous;
+	public final List<String> parameters;
+	public final boolean hasVarargs;
+	private List<Expr> body;
+
+	public FunDeclExpr(String name, List<String> parameters, List<Expr> body,
+					   boolean hasVarargs, Position position) {
+		super(position);
+		if (name != null) {
+			this.name = name;
+			this.anonymous = false;
+		} else {
+			this.name = "";
+			this.anonymous = true;
+		}
+		this.parameters = parameters;
+		this.body = body;
+		this.hasVarargs = hasVarargs;
+	}
+
+	public List<Expr> getBody() {
+		return body;
+	}
+
+	public void setBody(List<Expr> body) {
+		this.body = body;
+	}
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class BinaryExpr extends Expr {
+    public final Expr left;
+    public final String operator;
+    public final Expr right;
+    
+    public BinaryExpr(Expr left, String operator, Expr right, Position position) {
+        super(position);
+        this.left = left;
+        this.operator = operator;
+        this.right = right;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class UnaryExpr extends Expr {
+    public static final int PREFIX = 1;
+    public static final int POSTFIX = 2;
+    
+    public final String operator;
+    public final Expr operand;
+    public final int type;
+    
+    public UnaryExpr(String operator, Expr operand, Position position) {
+        this(operator, operand, PREFIX, position);
+    }
+    
+    public UnaryExpr(String operator, Expr operand, int type, Position position) {
+        super(position);
+        this.operator = operator;
+        this.operand = operand;
+        this.type = type;
+    }
+    
+    public boolean isPrefix() {
+        return type == PREFIX;
+    }
+    
+    public boolean isPostfix() {
+        return type == POSTFIX;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class LogicalExpr extends Expr {
+    public final Expr left;
+    public final String operator;
+    public final Expr right;
+    
+    public LogicalExpr(Expr left, String operator, Expr right, Position position) {
+        super(position);
+        this.left = left;
+        this.operator = operator;
+        this.right = right;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+import java.util.List;
+
+public class CallExpr extends Expr {
+    public final Expr callee;
+    public final List<Expr> arguments;
+    
+    public CallExpr(Expr callee, List<Expr> arguments, Position position) {
+        super(position);
+        this.callee = callee;
+        this.arguments = arguments;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class GetExpr extends Expr {
+    public final Expr object;
+    public final String name;
+    
+    public GetExpr(Expr object, String name, Position position) {
+        super(position);
+        this.object = object;
+        this.name = name;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class SetExpr extends Expr {
+    public final Expr object;
+    public final String name;
+    public final Expr value;
+    
+    public SetExpr(Expr object, String name, Expr value, Position position) {
+        super(position);
+        this.object = object;
+        this.name = name;
+        this.value = value;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class ThrowExpr extends Expr {
+    public final Expr value;
+    public final FunDeclExpr enclosingFunction;
+    
+    public ThrowExpr(Expr value, Position position) {
+        this(value, null, position);
+    }
+    
+    public ThrowExpr(Expr value, FunDeclExpr enclosingFunction, Position position) {
+        super(position);
+        this.value = value;
+        this.enclosingFunction = enclosingFunction;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+import java.util.List;
+
+public class ArrayExpr extends Expr {
+    public final List<Expr> elements;
+    
+    public ArrayExpr(List<Expr> elements, Position position) {
+        super(position);
+        this.elements = elements;
+    }
+}package com.lox.ast.tools;
+
+import com.lox.ast.*;
+import java.util.*;
+
+public class Printer implements ExprVisitor<String> {
+    private int indent = 0;
+    
+    private String indentString() {
+        return "  ".repeat(indent);
+    }
+    
+    public String print(Expr expr) {
+        return expr.accept(this);
+    }
+    
+    private void printList(List<Expr> expressions, StringBuilder sb, boolean needBraces) {
+        if (expressions == null || expressions.isEmpty()) {
+            if (needBraces) {
+                sb.append("{}");
+            }
+            return;
+        }
+        
+        if (expressions.size() == 1 && !needBraces) {
+            sb.append(expressions.get(0).accept(this));
+        } else {
+            sb.append("{");
+            if (expressions.size() > 1 || needBraces) {
+                indent++;
+                for (Expr e : expressions) {
+                    sb.append("\n").append(indentString());
+                    sb.append(e.accept(this));
+                    if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
+                        sb.append(";");
+                    }
+                }
+                indent--;
+                sb.append("\n").append(indentString()).append("}");
+            } else {
+                sb.append(" ").append(expressions.get(0).accept(this)).append(" }");
+            }
+        }
+    }
+    
+    @Override
+    public String visitLiteralExpr(LiteralExpr expr) {
+        if (expr.value == null) return "null";
+        if (expr.value instanceof String) return "\"" + expr.value + "\"";
+        return expr.value.toString();
+    }
+    
+    @Override
+    public String visitVarExpr(VarExpr expr) {
+        return expr.name;
+    }
+    
+    @Override
+    public String visitAssignExpr(AssignExpr expr) {
+        return expr.name + " = " + expr.value.accept(this);
+    }
+    
+    @Override
+    public String visitVarDeclExpr(VarDeclExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        for (Expr d : expr.decorators) {
+            sb.append(d.accept(this)).append(" ");
+        }
+        sb.append("var ").append(expr.name);
+        if (expr.value != null) {
+            sb.append(" = ").append(expr.value.accept(this));
+        }
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitFunDeclExpr(FunDeclExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("fun ");
+        if (!expr.name.isEmpty()) {
+            sb.append(expr.name);
+        }
+        sb.append("(");
+        if (expr.parameters != null) {
+            for (int i = 0; i < expr.parameters.size(); i++) {
+                if (i > 0) sb.append(", ");
+                if (expr.hasVarargs && i == expr.parameters.size() - 1) {
+                    sb.append("...");
+                }
+                sb.append(expr.parameters.get(i));
+            }
+        }
+        sb.append(") ");
+        
+        if (expr.getBody().size() == 1 && !(expr.getBody().get(0) instanceof ObjectExpr)) {
+            sb.append("-> ").append(expr.getBody().get(0).accept(this));
+        } else {
+            sb.append("{");
+            indent++;
+            for (Expr e : expr.getBody()) {
+                sb.append("\n").append(indentString()).append(e.accept(this));
+                if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
+                    sb.append(";");
+                }
+            }
+            indent--;
+            sb.append("\n").append(indentString()).append("}");
+        }
+        
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitDecorExpr(DecorExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("@").append(expr.name);
+        if (expr.arguments != null && !expr.arguments.isEmpty()) {
+            sb.append("(");
+            for (int i = 0; i < expr.arguments.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(expr.arguments.get(i).accept(this));
+            }
+            sb.append(")");
+        }
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitObjectExpr(ObjectExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        printList(expr.declarations, sb, true);
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitIfExpr(IfExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("if (").append(expr.condition.accept(this)).append(") ");
+        
+        if (expr.thenBranch.size() == 1 && !(expr.thenBranch.get(0) instanceof ObjectExpr)) {
+            sb.append(expr.thenBranch.get(0).accept(this));
+        } else {
+            sb.append("{");
+            indent++;
+            for (Expr e : expr.thenBranch) {
+                sb.append("\n").append(indentString()).append(e.accept(this));
+                if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
+                    sb.append(";");
+                }
+            }
+            indent--;
+            sb.append("\n").append(indentString()).append("}");
+        }
+        
+        if (expr.elseBranch != null && !expr.elseBranch.isEmpty()) {
+            sb.append(" else ");
+            if (expr.elseBranch.size() == 1 && !(expr.elseBranch.get(0) instanceof ObjectExpr)) {
+                sb.append(expr.elseBranch.get(0).accept(this));
+            } else {
+                sb.append("{");
+                indent++;
+                for (Expr e : expr.elseBranch) {
+                    sb.append("\n").append(indentString()).append(e.accept(this));
+                    if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
+                        sb.append(";");
+                    }
+                }
+                indent--;
+                sb.append("\n").append(indentString()).append("}");
+            }
+        }
+        
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitWhileExpr(WhileExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("while (").append(expr.condition.accept(this)).append(") ");
+        
+        if (expr.body.size() == 1 && !(expr.body.get(0) instanceof ObjectExpr)) {
+            sb.append(expr.body.get(0).accept(this));
+        } else {
+            sb.append("{");
+            indent++;
+            for (Expr e : expr.body) {
+                sb.append("\n").append(indentString()).append(e.accept(this));
+                if (!(e instanceof ObjectExpr) && !(e instanceof FunDeclExpr)) {
+                    sb.append(";");
+                }
+            }
+            indent--;
+            sb.append("\n").append(indentString()).append("}");
+        }
+        
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitBreakExpr(BreakExpr expr) {
+        return "break";
+    }
+    
+    @Override
+    public String visitContinueExpr(ContinueExpr expr) {
+        return "continue";
+    }
+    
+    @Override
+    public String visitBinaryExpr(BinaryExpr expr) {
+        return expr.left.accept(this) + " " + expr.operator + " " + expr.right.accept(this);
+    }
+    
+    @Override
+    public String visitUnaryExpr(UnaryExpr expr) {
+        if (expr.isPrefix()) {
+            return expr.operator + expr.operand.accept(this);
+        } else if (expr.isPostfix()) {
+            return expr.operand.accept(this) + expr.operator;
+        }
+        return expr.operand.accept(this);
+    }
+    
+    @Override
+    public String visitReturnExpr(ReturnExpr expr) {
+        if (expr.value != null) {
+            return "return " + expr.value.accept(this);
+        }
+        return "return";
+    }
+    
+    @Override
+    public String visitThrowExpr(ThrowExpr expr) {
+        if (expr.value != null) {
+            return "throw " + expr.value.accept(this);
+        }
+        return "throw";
+    }
+    
+    @Override
+    public String visitLogicalExpr(LogicalExpr expr) {
+        return expr.left.accept(this) + " " + expr.operator + " " + expr.right.accept(this);
+    }
+    
+    @Override
+    public String visitTernaryExpr(TernaryExpr expr) {
+        return expr.condition.accept(this) + " ? " + 
+               expr.thenExpr.accept(this) + " : " + 
+               expr.elseExpr.accept(this);
+    }
+    
+    @Override
+    public String visitCallExpr(CallExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(expr.callee.accept(this)).append("(");
+        
+        for (int i = 0; i < expr.arguments.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(expr.arguments.get(i).accept(this));
+        }
+        
+        sb.append(")");
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitGetExpr(GetExpr expr) {
+        return expr.object.accept(this) + "." + expr.name;
+    }
+    
+    @Override
+    public String visitSetExpr(SetExpr expr) {
+        return expr.object.accept(this) + "." + expr.name + " = " + expr.value.accept(this);
+    }
+    
+    @Override
+    public String visitIndexGetExpr(IndexGetExpr expr) {
+        return expr.array.accept(this) + "[" + expr.index.accept(this) + "]";
+    }
+    
+    @Override
+    public String visitIndexSetExpr(IndexSetExpr expr) {
+        return expr.array.accept(this) + "[" + expr.index.accept(this) + "] = " + 
+               expr.value.accept(this);
+    }
+    
+    @Override
+    public String visitArrayExpr(ArrayExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("[");
+        
+        for (int i = 0; i < expr.elements.size(); i++) {
+            if (i > 0) sb.append(", ");
+            sb.append(expr.elements.get(i).accept(this));
+        }
+        
+        sb.append("]");
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitParenthesisExpr(ParenthesisExpr expr) {
+        return "(" + expr.expression.accept(this) + ")";
+    }
+}package com.lox.ast.tools;
+
+import com.lox.ast.*;
+import com.lox.util.Position;
+import java.util.*;
+
+public class Dumper implements ExprVisitor<String> {
+    private int indent = 0;
+    private boolean showPositions = true;
+    private boolean showTypes = true;
+    
+    public Dumper() {
+        this(true, true);
+    }
+    
+    public Dumper(boolean showPositions, boolean showTypes) {
+        this.showPositions = showPositions;
+        this.showTypes = showTypes;
+    }
+    
+    private String indentString() {
+        return "  ".repeat(indent);
+    }
+    
+    private String positionString(Position pos) {
+        if (!showPositions || pos == null) return "";
+        return " [" + pos.getLine() + ":" + pos.getColumn() + "]";
+    }
+    
+    private String typeString(Object obj) {
+        if (!showTypes) return "";
+        if (obj == null) return " (null)";
+        String type = obj.getClass().getSimpleName();
+        return " <" + type + ">";
+    }
+    
+    public String dump(Expr expr) {
+        return expr.accept(this);
+    }
+    
+    private void dumpList(List<Expr> expressions, StringBuilder sb, String name) {
+        if (expressions == null || expressions.isEmpty()) {
+            sb.append("[]\n");
+            return;
+        }
+        
+        sb.append(name).append(": ");
+        if (expressions.size() == 1) {
+            sb.append("\n");
+            indent++;
+            sb.append(expressions.get(0).accept(this));
+            sb.append("\n");
+            indent--;
+        } else {
+            sb.append("[\n");
+            indent++;
+            for (Expr e : expressions) {
+                sb.append(e.accept(this)).append("\n");
+            }
+            indent--;
+            sb.append(indentString()).append("]\n");
+        }
+    }
+    
+    @Override
+    public String visitLiteralExpr(LiteralExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("LiteralExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": ");
+        if (expr.value == null) {
+            sb.append("null");
+        } else if (expr.value instanceof String) {
+            sb.append("\"").append(expr.value).append("\"");
+        } else {
+            sb.append(expr.value);
+        }
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitVarExpr(VarExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("VarExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": ").append(expr.name);
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitAssignExpr(AssignExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("AssignExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        indent++;
+        sb.append(indentString()).append("name: ").append(expr.name).append("\n");
+        sb.append(indentString()).append("value:\n");
+        sb.append(expr.value.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitVarDeclExpr(VarDeclExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        for (Expr d : expr.decorators) {
+            sb.append(d.accept(this)).append("\n");
+            sb.append(indentString());
+        }
+        sb.append(indentString()).append("VarDeclExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": var ").append(expr.name);
+        if (expr.value != null) {
+            sb.append("\n");
+            indent++;
+            sb.append(indentString()).append("value:\n");
+            sb.append(expr.value.accept(this));
+            indent--;
+        }
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitFunDeclExpr(FunDeclExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("FunDeclExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": fun ");
+        sb.append(expr.name.isEmpty() ? "<anonymous>" : expr.name);
+        sb.append("\n");
+        
+        indent++;
+        if (expr.parameters != null && !expr.parameters.isEmpty()) {
+            sb.append(indentString()).append("parameters: [");
+            for (int i = 0; i < expr.parameters.size(); i++) {
+                if (i > 0) sb.append(", ");
+                if (expr.hasVarargs && i == expr.parameters.size() - 1) sb.append("...");
+                sb.append(expr.parameters.get(i));
+            }
+            sb.append("]\n");
+        }
+        
+        dumpList(expr.getBody(), sb, "body");
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitDecorExpr(DecorExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("DecorExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": @").append(expr.name);
+        if (expr.arguments != null && !expr.arguments.isEmpty()) {
+            sb.append("(");
+            for (int i = 0; i < expr.arguments.size(); i++) {
+                if (i > 0) sb.append(", ");
+                sb.append(expr.arguments.get(i).accept(this));
+            }
+            sb.append(")");
+        }
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitObjectExpr(ObjectExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("ObjectExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        dumpList(expr.declarations, sb, "expressions");
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitIfExpr(IfExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("IfExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("condition:\n");
+        sb.append(expr.condition.accept(this)).append("\n");
+        dumpList(expr.thenBranch, sb, "then");
+        if (expr.elseBranch != null) {
+            dumpList(expr.elseBranch, sb, "else");
+        }
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitWhileExpr(WhileExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("WhileExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("condition:\n");
+        sb.append(expr.condition.accept(this)).append("\n");
+        dumpList(expr.body, sb, "body");
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitBreakExpr(BreakExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("BreakExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitContinueExpr(ContinueExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("ContinueExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitBinaryExpr(BinaryExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("BinaryExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": ").append(expr.operator).append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("left:\n");
+        sb.append(expr.left.accept(this)).append("\n");
+        sb.append(indentString()).append("right:\n");
+        sb.append(expr.right.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitUnaryExpr(UnaryExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("UnaryExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": ").append(expr.operator);
+        if (expr.isPrefix()) {
+            sb.append("(prefix)");
+        } else if (expr.isPostfix()) {
+            sb.append("(postfix)");
+        }
+        sb.append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("operand:\n");
+        sb.append(expr.operand.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitLogicalExpr(LogicalExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("LogicalExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": ").append(expr.operator).append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("left:\n");
+        sb.append(expr.left.accept(this)).append("\n");
+        sb.append(indentString()).append("right:\n");
+        sb.append(expr.right.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitTernaryExpr(TernaryExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("TernaryExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("condition:\n");
+        sb.append(expr.condition.accept(this)).append("\n");
+        sb.append(indentString()).append("then:\n");
+        sb.append(expr.thenExpr.accept(this)).append("\n");
+        sb.append(indentString()).append("else:\n");
+        sb.append(expr.elseExpr.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitCallExpr(CallExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("CallExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("callee:\n");
+        sb.append(expr.callee.accept(this)).append("\n");
+        dumpList(expr.arguments, sb, "arguments");
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitGetExpr(GetExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("GetExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": ").append(expr.name).append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("object:\n");
+        sb.append(expr.object.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitSetExpr(SetExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("SetExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append(": ").append(expr.name).append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("object:\n");
+        sb.append(expr.object.accept(this)).append("\n");
+        sb.append(indentString()).append("value:\n");
+        sb.append(expr.value.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitIndexGetExpr(IndexGetExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("IndexGetExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("array:\n");
+        sb.append(expr.array.accept(this)).append("\n");
+        sb.append(indentString()).append("index:\n");
+        sb.append(expr.index.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitIndexSetExpr(IndexSetExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("IndexSetExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("array:\n");
+        sb.append(expr.array.accept(this)).append("\n");
+        sb.append(indentString()).append("index:\n");
+        sb.append(expr.index.accept(this)).append("\n");
+        sb.append(indentString()).append("value:\n");
+        sb.append(expr.value.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitArrayExpr(ArrayExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("ArrayExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        dumpList(expr.elements, sb, "elements");
+        indent--;
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitReturnExpr(ReturnExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("ReturnExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        if (expr.enclosingFunction != null) {
+            sb.append(" -> ").append(expr.enclosingFunction.name.isEmpty() ? "<anonymous>" : expr.enclosingFunction.name);
+        }
+        if (expr.value != null) {
+            sb.append("\n");
+            indent++;
+            sb.append(indentString()).append("value:\n");
+            sb.append(expr.value.accept(this));
+            indent--;
+        }
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitThrowExpr(ThrowExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("ThrowExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        if (expr.enclosingFunction != null) {
+            sb.append(" -> ").append(expr.enclosingFunction.name.isEmpty() ? "<anonymous>" : expr.enclosingFunction.name);
+        }
+        if (expr.value != null) {
+            sb.append("\n");
+            indent++;
+            sb.append(indentString()).append("value:\n");
+            sb.append(expr.value.accept(this));
+            indent--;
+        }
+        return sb.toString();
+    }
+    
+    @Override
+    public String visitParenthesisExpr(ParenthesisExpr expr) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(indentString()).append("ParenthesisExpr");
+        sb.append(positionString(expr.getPosition()));
+        sb.append(typeString(expr));
+        sb.append("\n");
+        
+        indent++;
+        sb.append(indentString()).append("expression:\n");
+        sb.append(expr.expression.accept(this));
+        indent--;
+        return sb.toString();
+    }
+    
+    public void setShowPositions(boolean show) {
+        this.showPositions = show;
+    }
+    
+    public void setShowTypes(boolean show) {
+        this.showTypes = show;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class TernaryExpr extends Expr {
+    public final Expr condition;
+    public final Expr thenExpr;
+    public final Expr elseExpr;
+    
+    public TernaryExpr(Expr condition, Expr thenExpr, Expr elseExpr, Position position) {
+        super(position);
+        this.condition = condition;
+        this.thenExpr = thenExpr;
+        this.elseExpr = elseExpr;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class ReturnExpr extends Expr {
+    public final Expr value;
+    public final FunDeclExpr enclosingFunction;
+    
+    public ReturnExpr(Expr value, Position position) {
+        this(value, null, position);
+    }
+    
+    public ReturnExpr(Expr value, FunDeclExpr enclosingFunction, Position position) {
+        super(position);
+        this.value = value;
+        this.enclosingFunction = enclosingFunction;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class ParenthesisExpr extends Expr {
+    public final Expr expression;
+    
+    public ParenthesisExpr(Expr expression, Position position) {
+        super(position);
+        this.expression = expression;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class IndexSetExpr extends Expr {
+    public final Expr array;
+    public final Expr index;
+    public final Expr value;
+    
+    public IndexSetExpr(Expr array, Expr index, Expr value, Position position) {
+        super(position);
+        this.array = array;
+        this.index = index;
+        this.value = value;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class IndexGetExpr extends Expr {
+    public final Expr array;
+    public final Expr index;
+    
+    public IndexGetExpr(Expr array, Expr index, Position position) {
+        super(position);
+        this.array = array;
+        this.index = index;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+import java.util.List;
+
+public class IfExpr extends Expr {
+    public final Expr condition;
+    public final List<Expr> thenBranch;
+    public final List<Expr> elseBranch;
+    
+    public IfExpr(Expr condition, List<Expr> thenBranch, List<Expr> elseBranch, Position position) {
+        super(position);
+        this.condition = condition;
+        this.thenBranch = thenBranch;
+        this.elseBranch = elseBranch;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+import java.util.List;
+
+public class WhileExpr extends Expr {
+    public final Expr condition;
+    public final List<Expr> body;
+    
+    public WhileExpr(Expr condition, List<Expr> body, Position position) {
+        super(position);
+        this.condition = condition;
+        this.body = body;
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class BreakExpr extends Expr {
+    public BreakExpr(Position position) {
+        super(position);
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+
+public class ContinueExpr extends Expr {
+    public ContinueExpr(Position position) {
+        super(position);
+    }
+}package com.lox.ast;
+
+import com.lox.util.Position;
+import java.util.List;
+
+public class DecorExpr extends Expr {
+	public final String name;
+	public final List<Expr> arguments;
+
+	public DecorExpr(String name, List<Expr> arguments, Position position) {
+		super(position);
+		this.name = name;
+		this.arguments = arguments != null ? arguments : List.of();
+	}
+}package com.lox.token;
+
+import java.util.HashMap;
+import java.util.Map;
+import com.lox.util.Position;
+
+public class Token {
+	public final Type type;
+	public final String lexeme;
+	public final Object literal;
+	public final Position position;
+
+	private static final Map<String, String> lexemeCache = new HashMap<>();
+	private static final Map<Object, Object> literalCache = new HashMap<>();
+
+	private Token(Type type, String lexeme, Object literal, Position position) {
+		this.type = type;
+		this.lexeme = internLexeme(lexeme);
+		this.literal = internLiteral(literal);
+		this.position = position;
+	}
+
+	public static Token of(Type type, String lexeme, Object literal, int line, int column, int start, int end) {
+		return new Token(type, lexeme, literal, new Position(line, column, start, end));
+	}
+
+	public static Token of(Type type, String lexeme, int line, int column, int start, int end) {
+		return of(type, lexeme, null, line, column, start, end);
+	}
+
+	public static Token eof(int line, int column, int start, int end) {
+		return of(Type.EOF, "", null, line, column, start, end);
+	}
+
+	private static String internLexeme(String lexeme) {
+		if (lexeme == null) return null;
+		return lexemeCache.computeIfAbsent(lexeme, l -> l);
+	}
+
+	private static Object internLiteral(Object literal) {
+		if (literal == null) return null;
+		return literalCache.computeIfAbsent(literal, l -> l);
+	}
+
+	public static void clearCache() {
+		lexemeCache.clear();
+		literalCache.clear();
+	}
+
+	public int getLine() {
+		return position.getLine();
+	}
+	public int getColumn() {
+		return position.getColumn();
+	}
+	public int getStart() {
+		return position.getStart();
+	}
+	public int getEnd() {
+		return position.getEnd();
+	}
+	public Position getPosition() {
+		return position;
+	}
+
+	public boolean isKeyword() {
+		return type == Type.VAR || type == Type.FUN ||
+			   type == Type.RETURN || type == Type.THROW ||
+			   type == Type.IF || type == Type.ELSE || type == Type.WHILE ||
+			   type == Type.BREAK || type == Type.CONTINUE;
+	}
+
+	public boolean isOperator() {
+		return type == Type.PLUS || type == Type.MINUS || type == Type.STAR ||
+			   type == Type.SLASH || type == Type.PERCENT || type == Type.QUESTION ||
+			   type == Type.QUESTION_QUESTION ||
+			   type == Type.PLUS_PLUS || type == Type.MINUS_MINUS ||
+			   type == Type.EQ || type == Type.EQ_EQ || type == Type.NOT ||
+			   type == Type.NOT_EQ || type == Type.LT || type == Type.GT ||
+			   type == Type.LTE || type == Type.GTE || type == Type.AND ||
+			   type == Type.AND_AND || type == Type.OR || type == Type.OR_OR ||
+			   type == Type.PLUS_EQ || type == Type.MINUS_EQ ||
+			   type == Type.STAR_EQ || type == Type.SLASH_EQ ||
+			   type == Type.PERCENT_EQ || type == Type.AND_EQ ||
+			   type == Type.OR_EQ || type == Type.ARROW;
+	}
+
+	public boolean isComparison() {
+		return type == Type.LT || type == Type.GT || type == Type.LTE || type == Type.GTE ||
+			   type == Type.EQ_EQ || type == Type.NOT_EQ;
+	}
+
+	public boolean isLogical() {
+		return type == Type.AND_AND || type == Type.OR_OR;
+	}
+
+	public boolean isArithmetic() {
+		return type == Type.PLUS || type == Type.MINUS || type == Type.STAR ||
+			   type == Type.SLASH || type == Type.PERCENT;
+	}
+
+	public boolean isIncrementDecrement() {
+		return type == Type.PLUS_PLUS || type == Type.MINUS_MINUS;
+	}
+
+	public boolean isLiteral() {
+		return type == Type.NUMBER || type == Type.STRING || type == Type.BOOLEAN || type == Type.NULL;
+	}
+
+	public boolean isPunctuation() {
+		return type == Type.LPAREN || type == Type.RPAREN || type == Type.LBRACE ||
+			   type == Type.RBRACE || type == Type.LBRACKET || type == Type.RBRACKET ||
+			   type == Type.COMMA || type == Type.DOT || type == Type.SEMICOLON ||
+			   type == Type.COLON || type == Type.AT;
+	}
+
+	public boolean isClosing() {
+		return type == Type.RPAREN || type == Type.RBRACE || type == Type.RBRACKET ||
+			   type == Type.SEMICOLON || type == Type.EOF;
+	}
+
+	public boolean isOpening() {
+		return type == Type.LPAREN || type == Type.LBRACE || type == Type.LBRACKET;
+	}
+
+	public boolean isAssignment() {
+		return type == Type.EQ ||
+			   type == Type.PLUS_EQ ||
+			   type == Type.MINUS_EQ ||
+			   type == Type.STAR_EQ ||
+			   type == Type.SLASH_EQ ||
+			   type == Type.PERCENT_EQ ||
+			   type == Type.AND_EQ ||
+			   type == Type.OR_EQ;
+	}
+
+	public boolean isUnary() {
+		return type == Type.NOT || type == Type.MINUS;
+	}
+
+	public boolean isReturn() {
+		return type == Type.RETURN;
+	}
+
+	public boolean isThrow() {
+		return type == Type.THROW;
+	}
+
+	public boolean isBreak() {
+		return type == Type.BREAK;
+	}
+
+	public boolean isContinue() {
+		return type == Type.CONTINUE;
+	}
+
+	@Override
+	public String toString() {
+		return type + " " + lexeme + " " + (literal != null ? literal : "") + " " + position;
+	}
+}package com.lox.token;
+
+public enum Type {
+    NUMBER, STRING, BOOLEAN, NULL, IDENTIFIER,
+    
+    VAR, FUN, RETURN, THROW,
+    IF, ELSE, WHILE, BREAK, CONTINUE,
+    
+    PLUS, MINUS, STAR, SLASH, PERCENT, QUESTION, QUESTION_QUESTION,
+    PLUS_PLUS, MINUS_MINUS,
+    EQ, EQ_EQ, NOT, NOT_EQ, LT, GT, LTE, GTE,
+    AND, AND_AND, OR, OR_OR,
+    
+    PLUS_EQ, MINUS_EQ, STAR_EQ, SLASH_EQ, PERCENT_EQ,
+    AND_EQ, OR_EQ,
+    
+    ARROW, ELLIPSIS,
+    
+    LPAREN, RPAREN, LBRACE, RBRACE,
+    LBRACKET, RBRACKET, COMMA, DOT, COLON, AT, SEMICOLON,
+    
+    EOF
+}package com.lox.token;
+
+import java.util.ArrayList;
+import java.util.List;
+
+public abstract class TokenStream {
+    protected final List<Token> cache = new ArrayList<>();
+    protected int position = 0;
+    protected int fetchPosition = -1;
+    
+    private int forwardWindow = 5;
+    private int backwardWindow = 5;
+    private int maxBacktrackCount = 2;
+    
+    private int backtrackLevel = 0;
+    private int savedPosition = 0;
+    private boolean isBacktracking = false;
+    
+    private int eofPosition = -1;
+    
+    protected TokenStream() {}
+    
+    protected TokenStream(int forwardWindow, int backwardWindow, int maxBacktrackCount) {
+        this.forwardWindow = forwardWindow;
+        this.backwardWindow = backwardWindow;
+        this.maxBacktrackCount = maxBacktrackCount;
+    }
+    
+    protected abstract Token fetchNextToken();
+    
+    private void maintainWindow() {
+        int needed = position + forwardWindow;
+        while (fetchPosition < needed) {
+            if(eofPosition != -1) break;
+            Token next = fetchNextToken();
+            if (next == null) {
+                throw new IllegalStateException("Lexer returned null token");
+            }
+            cache.add(next);
+            fetchPosition++;
+            if (next.type == Type.EOF) {
+                eofPosition = fetchPosition;
+                break;
+            }
+        }
+        
+        int minKeep = position - backwardWindow;
+        if (minKeep > 0) {
+            for (int i = 0; i < minKeep; i++) {
+                if (cache.get(i) != null) {
+                    cache.set(i, null);
+                }
+            }
+        }
+    }
+    
+    public Token peek() {
+        maintainWindow();
+        if (position >= cache.size()) {
+            return null;
+        }
+        return cache.get(position);
+    }
+    
+    public Token peekNext() {
+        maintainWindow();
+        if (position + 1 >= cache.size()) {
+            return null;
+        }
+        return cache.get(position + 1);
+    }
+    
+    public Token peekNextNext() {
+        maintainWindow();
+        if (position + 2 >= cache.size()) {
+            return null;
+        }
+        return cache.get(position + 2);
+    }
+    
+    public Token peekBack() {
+        if (position == 0) {
+            throw new IllegalStateException("No previous token available");
+        }
+        maintainWindow();
+        return cache.get(position - 1);
+    }
+    
+    public Token peekBackBack() {
+        if (position < 2) {
+            throw new IllegalStateException("No token two positions back");
+        }
+        maintainWindow();
+        return cache.get(position - 2);
+    }
+    
+    public Token advance() {
+        Token current = peek();
+        if (current != null && current.type != Type.EOF) {
+            position++;
+        }
+        return current;
+    }
+    
+    public boolean check(Type type) {
+        Token t = peek();
+        return t != null && t.type == type;
+    }
+    
+    public boolean checkNext(Type type) {
+        Token t = peekNext();
+        return t != null && t.type == type;
+    }
+    
+    public boolean checkNextNext(Type type) {
+        Token t = peekNextNext();
+        return t != null && t.type == type;
+    }
+    
+    public boolean checkBack(Type type) {
+        if (position == 0) return false;
+        Token t = peekBack();
+        return t != null && t.type == type;
+    }
+    
+    public boolean checkBackBack(Type type) {
+        if (position < 2) return false;
+        Token t = peekBackBack();
+        return t != null && t.type == type;
+    }
+    
+    public boolean checkAny(Type... types) {
+        Token t = peek();
+        if (t == null) return false;
+        for (Type type : types) {
+            if (t.type == type) return true;
+        }
+        return false;
+    }
+    
+    public boolean checkNextAny(Type... types) {
+        Token t = peekNext();
+        if (t == null) return false;
+        for (Type type : types) {
+            if (t.type == type) return true;
+        }
+        return false;
+    }
+    
+    public boolean checkNextNextAny(Type... types) {
+        Token t = peekNextNext();
+        if (t == null) return false;
+        for (Type type : types) {
+            if (t.type == type) return true;
+        }
+        return false;
+    }
+    
+    public boolean checkBackAny(Type... types) {
+        if (position == 0) return false;
+        Token t = peekBack();
+        if (t == null) return false;
+        for (Type type : types) {
+            if (t.type == type) return true;
+        }
+        return false;
+    }
+    
+    public boolean checkBackBackAny(Type... types) {
+        if (position < 2) return false;
+        Token t = peekBackBack();
+        if (t == null) return false;
+        for (Type type : types) {
+            if (t.type == type) return true;
+        }
+        return false;
+    }
+    
+    public boolean match(Type t) {
+        if (check(t)) {
+            Token tk = advance();
+            return true;
+        }
+        return false;
+    }
+    
+    public boolean matchAny(Type... types) {
+        for (Type type : types) {
+            if (check(type)) {
+                Token tk = advance();
+                return true;
+            }
+        }
+        return false;
+    }
+    
+    public boolean isAtEnd() {
+        Token t = peek();
+        return t == null || t.type == Type.EOF;
+    }
+    
+    public void beginBacktrack() {
+        if (backtrackLevel >= maxBacktrackCount) {
+            throw new IllegalStateException("Maximum backtrack count exceeded: " + maxBacktrackCount);
+        }
+        
+        if (!isBacktracking) {
+            savedPosition = position;
+            isBacktracking = true;
+        }
+        backtrackLevel++;
+    }
+    
+    public void commitBacktrack() {
+        if (backtrackLevel > 0) {
+            backtrackLevel--;
+            if (backtrackLevel == 0) {
+                isBacktracking = false;
+                savedPosition = position;
+            }
+        }
+    }
+    
+    public void rollbackBacktrack() {
+        if (backtrackLevel > 0) {
+            position = savedPosition;
+            backtrackLevel--;
+            if (backtrackLevel == 0) {
+                isBacktracking = false;
+            }
+        }
+    }
+    
+    public int mark() {
+        return position;
+    }
+    
+    public void reset(int mark) {
+        if (mark < 0 || mark > position) {
+            throw new IllegalArgumentException("Invalid mark position: " + mark);
+        }
+        position = mark;
+        
+        if (isBacktracking && mark < savedPosition) {
+            savedPosition = mark;
+        }
+    }
+    
+    public int getPosition() {
+        return position;
+    }
+    
+    public int getFetchPosition() {
+        return fetchPosition;
+    }
+    
+    public boolean isBacktracking() {
+        return isBacktracking;
+    }
+    
+    public Token previous() {
+        return peekBack();
+    }
+    
+    public void release() {
+        for (int i = 0; i < cache.size(); i++) {
+            cache.set(i, null);
+        }
+        cache.clear();
+        Token.clearCache();
+        position = 0;
+        fetchPosition = -1;
+    }
+}

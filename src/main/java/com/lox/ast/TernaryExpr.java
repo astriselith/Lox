@@ -13,9 +13,4 @@ public class TernaryExpr extends Expr {
         this.thenExpr = thenExpr;
         this.elseExpr = elseExpr;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitTernaryExpr(this);
-    }
 }

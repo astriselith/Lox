@@ -12,9 +12,4 @@ public class CallExpr extends Expr {
         this.callee = callee;
         this.arguments = arguments;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitCallExpr(this);
-    }
 }

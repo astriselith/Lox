@@ -15,9 +15,4 @@ public class ReturnExpr extends Expr {
         this.value = value;
         this.enclosingFunction = enclosingFunction;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitReturnExpr(this);
-    }
 }

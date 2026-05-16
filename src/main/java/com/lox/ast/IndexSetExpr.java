@@ -13,9 +13,4 @@ public class IndexSetExpr extends Expr {
         this.index = index;
         this.value = value;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitIndexSetExpr(this);
-    }
 }

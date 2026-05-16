@@ -10,9 +10,4 @@ public class ArrayExpr extends Expr {
         super(position);
         this.elements = elements;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitArrayExpr(this);
-    }
 }

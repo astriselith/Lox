@@ -13,9 +13,4 @@ public class BinaryExpr extends Expr {
         this.operator = operator;
         this.right = right;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitBinaryExpr(this);
-    }
 }

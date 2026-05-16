@@ -12,9 +12,4 @@ public class DecorExpr extends Expr {
 		this.name = name;
 		this.arguments = arguments != null ? arguments : List.of();
 	}
-
-	@Override
-	public <T> T accept(ExprVisitor<T> visitor) {
-		return visitor.visitDecorExpr(this);
-	}
 }

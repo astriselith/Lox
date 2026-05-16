@@ -28,9 +28,4 @@ public class UnaryExpr extends Expr {
     public boolean isPostfix() {
         return type == POSTFIX;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitUnaryExpr(this);
-    }
 }

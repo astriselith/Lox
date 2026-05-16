@@ -9,9 +9,4 @@ public class LiteralExpr extends Expr {
         super(position);
         this.value = value;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitLiteralExpr(this);
-    }
 }

@@ -6,9 +6,4 @@ public class ContinueExpr extends Expr {
     public ContinueExpr(Position position) {
         super(position);
     }
-    
-    @Override
-    public <R> R accept(ExprVisitor<R> visitor) {
-        return visitor.visitContinueExpr(this);
-    }
 }

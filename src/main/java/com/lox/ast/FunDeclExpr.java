@@ -32,9 +32,4 @@ public class FunDeclExpr extends Expr {
 	public void setBody(List<Expr> body) {
 		this.body = body;
 	}
-
-	@Override
-	public <T> T accept(ExprVisitor<T> visitor) {
-		return visitor.visitFunDeclExpr(this);
-	}
 }

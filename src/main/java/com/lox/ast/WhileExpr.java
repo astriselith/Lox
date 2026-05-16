@@ -12,9 +12,4 @@ public class WhileExpr extends Expr {
         this.condition = condition;
         this.body = body;
     }
-    
-    @Override
-    public <R> R accept(ExprVisitor<R> visitor) {
-        return visitor.visitWhileExpr(this);
-    }
 }

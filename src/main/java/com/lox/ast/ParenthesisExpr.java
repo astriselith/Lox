@@ -9,9 +9,4 @@ public class ParenthesisExpr extends Expr {
         super(position);
         this.expression = expression;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitParenthesisExpr(this);
-    }
 }

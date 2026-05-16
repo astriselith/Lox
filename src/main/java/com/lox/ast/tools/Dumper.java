@@ -178,7 +178,7 @@ public class Dumper implements ExprVisitor<String> {
         sb.append("\n");
         
         indent++;
-        dumpList(expr.getExpressions(), sb, "expressions");
+        dumpList(expr.declarations, sb, "expressions");
         indent--;
         return sb.toString();
     }

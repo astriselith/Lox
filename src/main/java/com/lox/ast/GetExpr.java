@@ -11,9 +11,4 @@ public class GetExpr extends Expr {
         this.object = object;
         this.name = name;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitGetExpr(this);
-    }
 }

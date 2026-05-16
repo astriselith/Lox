@@ -4,19 +4,10 @@ import com.lox.util.Position;
 import java.util.List;
 
 public class ObjectExpr extends Expr {
-    private final List<Expr> expressions;
+    public final List<Expr> declarations;
     
-    public ObjectExpr(List<Expr> expressions, Position position) {
+    public ObjectExpr(List<Expr> declarations, Position position) {
         super(position);
-        this.expressions = expressions;
-    }
-    
-    public List<Expr> getExpressions() {
-        return expressions;
-    }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitObjectExpr(this);
+        this.declarations = declarations != null ? declarations : List.of();
     }
 }

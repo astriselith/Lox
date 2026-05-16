@@ -354,7 +354,7 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		TableValue blockEnv = this.current.child();
 		this.current = blockEnv;
 
-		for (Expr e : expr.getExpressions()) {
+		for (Expr e : expr.declarations) {
 			Value eval = e.accept(this);
 
 			if (eval.isReturn() || eval.isThrow() || eval.isBreak() || eval.isContinue()) {

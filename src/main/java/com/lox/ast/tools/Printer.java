@@ -128,7 +128,7 @@ public class Printer implements ExprVisitor<String> {
     @Override
     public String visitObjectExpr(ObjectExpr expr) {
         StringBuilder sb = new StringBuilder();
-        printList(expr.getExpressions(), sb, true);
+        printList(expr.declarations, sb, true);
         return sb.toString();
     }
     

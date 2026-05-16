@@ -11,9 +11,4 @@ public class AssignExpr extends Expr {
         this.name = name;
         this.value = value;
     }
-    
-    @Override
-    public <T> T accept(ExprVisitor<T> visitor) {
-        return visitor.visitAssignExpr(this);
-    }
 }

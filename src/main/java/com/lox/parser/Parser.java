@@ -161,7 +161,7 @@ public class Parser {
 		return new ObjectExpr(declarations, between(start, end));
 	}
 
-	private DecorExpr decor() {
+	private Expr decor() {
 		if (!stream.match(AT)) throw error(ERR_DECOR_AT);
 
 		Token atToken = stream.previous();
@@ -181,7 +181,7 @@ public class Parser {
 	}
 
 	private Expr decl() {
-		List<DecorExpr> decorators = new ArrayList<>();
+		List<Expr> decorators = new ArrayList<>();
 
 		while (stream.check(AT)) {
 			decorators.add(decor());
@@ -202,7 +202,7 @@ public class Parser {
 		throw error("Erro interno: decl() chamado sem var ou fun");
 	}
 
-	private Expr varDecl(List<DecorExpr> decorators) {
+	private Expr varDecl(List<Expr> decorators) {
 		Token start = stream.peek();
 
 		if (!stream.match(VAR)) throw error(ERR_VAR);
