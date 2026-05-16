@@ -1,0 +1,34 @@
+const fun main() {
+    var nums = [1, 2, 3, 4, 5];
+
+    fun double(x) -> x * 2;
+
+    fun process(list) {
+        var i = 0;
+
+        while (i < list.length) {
+            var value = list[i];
+
+            if (value % 2 == 0) {
+                println("par: " + value);
+            } else {
+                println("ímpar: " + value);
+            }
+
+            list[i] = double(value);
+            i = i + 1;
+        }
+
+        return list;
+    }
+
+    var result = process(nums);
+
+    println("resultado final:");
+    println(result);
+
+    return result;
+}
+
+main();
+null;

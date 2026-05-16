@@ -1,0 +1,15 @@
+// Definindo um "tipo" usando bloco com parâmetros
+var Point = { (x, y) ->
+        var distance = { (other) ->
+            var dx = self.x - other.x;
+            var dy = self.y - other.y;
+            return sqrt(dx*dx + dy*dy);
+        }
+        self;
+}
+
+// Criando instâncias
+var p1 = Point(10, 20);
+var p2 = Point(30, 40);
+
+println(p1.distance(p2));

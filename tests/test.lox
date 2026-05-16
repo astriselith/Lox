@@ -1,0 +1,131 @@
+const var GLOBAL = 100;
+
+fun add(a, b) {
+    return a + b;
+}
+
+const fun mul(a, b) ->
+    a * b;
+
+fun variadic(...args) {
+    var i = 0;
+    var sum = 0;
+
+    while (i < args.length) {
+        sum += args[i];
+
+        if (sum > 50) {
+            break;
+        }
+
+        i++;
+    }
+
+    return sum;
+}
+
+fun lambdas() {
+    var f = fun(x) -> x * 2;
+
+    var g = fun(a, b) {
+        return a + b;
+    };
+
+    return f(10) + g(3, 7);
+}
+
+fun arraysAndObjects() {
+    var arr = [1, 2, 3, 4];
+
+    arr[0] += 10;
+    arr[1] = arr[1] * 2;
+
+    var obj = { var x; var y; var z;};
+    obj.x = 10;
+    obj.y = obj.x + arr[1];
+
+    if (obj.y > 20) {
+        obj.z = obj.y;
+    } else {
+        obj.z = 0;
+    }
+
+    return obj.z;
+}
+
+fun loopsAndFlow() {
+    var i = 0;
+    var total = 0;
+
+    while (i < 10) {
+        if (i == 3) {
+            i++;
+            continue;
+        }
+
+        total += i;
+
+        if (total > 25) {
+            break;
+        }
+
+        i++;
+    }
+
+    return total;
+}
+
+fun operatorsTest() {
+    var a = 10;
+    var b = 20;
+    var c = null;
+
+    var x = a + b * 2;
+    var y = (a + b) * 2;
+
+    var z = c ?? 999;
+
+    var t = a > b ? a : b;
+
+    return x + y + z + t;
+}
+
+fun unaryTest() {
+    var x = 10;
+
+    x++;
+    ++x;
+
+    var y = 5;
+    y--;
+
+    return x + y;
+}
+
+fun calls() {
+    println(add(1, 2));
+    println(mul(3, 4));
+
+    println(variadic(1, 2, 3, 4, 5));
+
+    return add(mul(2, 3), variadic(1, 2));
+}
+
+fun nested() {
+    var result = add(
+        mul(2, 3),
+        add(4, 5)
+    );
+
+    println(result);
+
+    return result;
+}
+
+println(calls());
+nested();
+lambdas();
+arraysAndObjects();
+loopsAndFlow();
+operatorsTest();
+unaryTest();
