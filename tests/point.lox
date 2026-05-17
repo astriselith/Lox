@@ -1,8 +1,8 @@
 // Definindo um "tipo" usando bloco com parâmetros
 fun Point(px, py) {
 	return {
-		var x = px;
-		var y = py;
+		x: px;
+		y: py;
 		fun distance(other) {
 			var dx = x - other.x;
 			var dy = y - other.y;
