@@ -1,5 +1,5 @@
 ## ============================================================================
-## Lox language syntax highlighting for GNU nano
+## Lox language syntax highlighting for GNU nano geneated with AI
 ## ============================================================================
 
 syntax "lox" "\.lox$"
@@ -35,7 +35,7 @@ color brightred "(\+|\-|\*|/|%|==|!=|<=|>=|<|>|=)"
 color white "[\[\]\(\)\{\}]"
 
 ## ----------------------------------------------------------------------------
-## Strings (DEIXAR POR ÚLTIMO)
+## Strings
 ## ----------------------------------------------------------------------------
 color yellow start="\"" end="\""
 color yellow start="'" end="'"
