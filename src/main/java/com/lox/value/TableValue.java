@@ -3,35 +3,39 @@ package com.lox.value;
 import java.util.*;
 
 public class TableValue extends Value {
- protected final Map<String, Value> values = new HashMap<>();
- protected final Map<String, List<DecoratorValue>> decorators = new HashMap<>();
- protected final TableValue parent;
- protected final TableValue global;
+	protected final Map<String, Value> values = new HashMap<>();
+	protected final Map<String, List<DecoratorValue>> decorators = new HashMap<>();
+	protected final TableValue parent;
+	protected final TableValue global;
 
- public TableValue() {
+	public TableValue() {
 		this(null, null);
- }
+	}
 
- public TableValue(TableValue parent) {
+	public TableValue(TableValue parent) {
 		this(parent, parent != null ? parent.getGlobal() : null);
- }
+	}
 
- public TableValue(TableValue parent, TableValue global) {
+	public TableValue(TableValue parent, TableValue global) {
 		this.parent = parent;
 		this.global = global != null ? global : this;
- }
+	}
 
- @Override
- public boolean isTable() {
+	@Override
+	public boolean isTable() {
 		return true;
- }
+	}
 
- @Override
- public TableValue asTable() {
+	@Override
+	public TableValue asTable() {
 		return this;
- }
+	}
+	
+	public Set<String> keys() {
+	    return values.keySet();
+	}
 
- public Value get(String name) {
+	public Value get(String name) {
 		if (name.equals("global")) {
 			return global;
 		}
@@ -49,13 +53,13 @@ public class TableValue extends Value {
 		}
 
 		return NullValue.INSTANCE;
- }
+	}
 
- public void declare(String name, Value value) {
+	public void declare(String name, Value value) {
 		declare(name, value, List.of());
- }
+	}
 
- public void declare(String name, Value value, List<DecoratorValue> decoratorList) {
+	public void declare(String name, Value value, List<DecoratorValue> decoratorList) {
 		if (name.equals("global")) {
 			throw new RuntimeException("Não é permitido redeclarar 'global'");
 		}
@@ -81,9 +85,9 @@ public class TableValue extends Value {
 		} else {
 			values.put(name, value);
 		}
- }
+	}
 
- public void undeclare(String name) {
+	public void undeclare(String name) {
 		if (name.equals("global")) {
 			throw new RuntimeException("Não é permitido remover 'global'");
 		}
@@ -92,9 +96,9 @@ public class TableValue extends Value {
 			values.remove(name);
 			decorators.remove(name);
 		}
- }
+	}
 
- public void set(String name, Value newValue) {
+	public void set(String name, Value newValue) {
 		if (name.equals("global")) {
 			throw new RuntimeException("Não é permitido modificar 'global'");
 		}
@@ -125,9 +129,9 @@ public class TableValue extends Value {
 			}
 		}
 		values.put(name, result);
- }
+	}
 
- public boolean has(String name) {
+	public boolean has(String name) {
 		if (name.equals("global")) {
 			return true;
 		}
@@ -145,39 +149,39 @@ public class TableValue extends Value {
 		}
 
 		return false;
- }
+	}
 
- public boolean hasLocal(String name) {
+	public boolean hasLocal(String name) {
 		if (name.equals("global")) {
 			return true;
 		}
 		return values.containsKey(name);
- }
+	}
 
- public TableValue getParent() {
+	public TableValue getParent() {
 		return parent;
- }
+	}
 
- public TableValue getGlobal() {
+	public TableValue getGlobal() {
 		return global;
- }
+	}
 
- public TableValue child() {
+	public TableValue child() {
 		return new TableValue(this, global);
- }
+	}
 
- @Override
- public String type() {
+	@Override
+	public String type() {
 		return "table";
- }
+	}
 
- @Override
- public boolean truthy() {
+	@Override
+	public boolean truthy() {
 		return true;
- }
+	}
 
- @Override
- public String toString() {
+	@Override
+	public String toString() {
 		StringBuilder sb = new StringBuilder();
 		sb.append(System.identityHashCode(this));
 		sb.append("{");
@@ -190,15 +194,15 @@ public class TableValue extends Value {
 		}
 		sb.append("}");
 		return sb.toString();
- }
+	}
 
- @Override
- public boolean equals(Object obj) {
+	@Override
+	public boolean equals(Object obj) {
 		if (this == obj)
 			return true;
 		if (!(obj instanceof TableValue))
 			return false;
 		TableValue other = (TableValue) obj;
 		return values.equals(other.values);
- }
+	}
 }

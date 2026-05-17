@@ -1,0 +1,130 @@
+fun typed(expected, default) {
+	return {
+		fun init(target) {
+			if(typeof(target) == expected)
+				return target;
+
+			return default;
+		}
+
+		fun write(current, target) {
+			if(typeof(target) == expected)
+				return target;
+
+			return current;
+		}
+	};
+}
+
+fun number() {
+	return typed("number", 0);
+}
+
+fun string() {
+	return typed("string", "");
+}
+
+fun table() {
+	return typed("table", {});
+}
+
+fun array() {
+	return typed("array", []);
+}
+
+fun Range(min, max) {
+	return {
+		fun write(current, target) {
+			if(typeof(target) != "number")
+				return current;
+
+			if(target < min || target > max)
+				return current;
+
+			return target;
+		}
+	};
+}
+
+fun watch(name) {
+	return {
+		fun write(current, target) {
+			println(name + ": " + current + " -> " + target);
+			return target;
+		}
+	};
+}
+
+println("=== PLAYER ===");
+
+@table
+var player = {
+	name: "Hero";
+	level: 1;
+	hp: 100;
+	@Range(0, 200)
+	mana: 50;
+};
+
+
+println(player.name);
+println(player.level);
+println(player.hp);
+println(player.mana);
+
+println("");
+
+println("=== MUTATIONS ===");
+
+player.hp = 80;
+player.level = 2;
+player.mana = 500;   // bloqueado pelo Range
+
+println(player.hp);
+println(player.level);
+println(player.mana);
+
+println("");
+
+println("=== TYPED FIELD STYLE ===");
+
+@table
+var config = {
+	@string
+	title: "Game";
+	
+	@number
+	version: 1;
+	
+	@number
+	maxPlayers: "invalid"; // vira 0
+};
+
+println(config.title);
+println(config.version);
+println(config.maxPlayers);
+
+println("");
+
+println("=== WATCH + NUMBER ===");
+
+@watch("hp")
+@number
+var hp = 100;
+
+hp = 70;
+hp = 30;
+hp = "invalid"; // ignorado
+println(hp);
+
+println("");
+
+println("=== ARRAY ===");
+
+@array
+var items = [1, 2, 3];
+
+items = ["a", "b"];
+items = "invalid"; // ignorado
+
+println(items);

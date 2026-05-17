@@ -1,0 +1,54 @@
+fun defaultOf(type) {
+	if (type == "number") return 0;
+	if (type == "string") return "";
+	if (type == "table") return {};
+	if (type == "array") return [];
+
+	return null;
+}
+
+fun validate(obj, schema) {
+	if (typeof(obj) != "table")
+		return {};
+
+	var keys = keysOf(schema);
+	var i = 0;
+
+	while (i < keys.length) {
+		var key = keys[i];
+
+		var expected = getOf(schema, key);
+		var value = getOf(obj, key);
+
+		if (typeof(value) != expected) {
+			setOf(obj, key, defaultOf(expected));
+		}
+
+		i++;
+	}
+
+	return obj;
+}
+
+fun contract(schema) {
+	return {
+		fun init(target) -> validate(target, schema);
+		fun write(current, target) -> validate(target, schema);
+	};
+}
+
+println("=== CONTRACT ===");
+
+fun Person() ->  contract({
+	name: "string";
+	age: "number";
+});
+
+@Person
+var user = {
+	name: "Gabriel";
+	age: 18;
+};
+
+println(user.name);
+println(user.age);

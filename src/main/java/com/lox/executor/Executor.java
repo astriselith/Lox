@@ -6,20 +6,20 @@ import com.lox.value.*;
 import java.util.*;
 
 public class Executor implements ExprVisitor<Value>, Callable {
- private TableValue current;
- private final TableValue global;
+	private TableValue current;
+	private final TableValue global;
 
- public Executor() {
+	public Executor() {
 		this.global = new TableValue();
 		this.current = global;
 		defineBuiltins();
- }
+	}
 
- public TableValue getGlobal() {
+	public TableValue getGlobal() {
 		return global;
- }
+	}
 
- private void defineBuiltins() {
+	private void defineBuiltins() {
 		// println
 		FunctionValue println = new FunctionValue(null, this, global) {
 			@Override
@@ -100,6 +100,128 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		};
 		global.declare("typeof", typeof);
 
+		FunctionValue keysOf = new FunctionValue(null, this, global) {
+			@Override
+			public Value call(TableValue env, List<Value> arguments) {
+				Value target = arguments.get(0);
+
+				if (!target.isTable()) {
+					return throwError("keysOf espera uma tabela");
+				}
+
+				TableValue table = target.asTable();
+
+				List<Value> result = new ArrayList<>();
+
+				for (String key : table.keys()) {
+					result.add(new StringValue(key));
+				}
+
+				return new ArrayValue(result);
+			}
+
+			@Override public int arity() {
+				return 1;
+			}
+			@Override public boolean hasVarargs() {
+				return false;
+			}
+			@Override public int minArity() {
+				return 1;
+			}
+			@Override public String getName() {
+				return "keysOf";
+			}
+		};
+
+		global.declare("keysOf", keysOf);
+
+		FunctionValue setOf = new FunctionValue(null, this, global) {
+			@Override
+			public Value call(TableValue env, List<Value> arguments) {
+				if (arguments.size() < 3) {
+					return throwError("setOf espera (obj, name, value)");
+				}
+
+				Value target = arguments.get(0);
+				Value nameVal = arguments.get(1);
+				Value value = arguments.get(2);
+
+				if (!target.isTable()) {
+					return throwError("setOf espera um objeto (table)");
+				}
+
+				if (!nameVal.isString()) {
+					return throwError("nome da propriedade deve ser string");
+				}
+
+				TableValue table = target.asTable();
+				String name = nameVal.asString();
+
+				try {
+					table.set(name, value);
+					return value;
+				} catch (RuntimeException e) {
+					return throwError(e.getMessage());
+				}
+			}
+
+			@Override public int arity() {
+				return 3;
+			}
+			@Override public boolean hasVarargs() {
+				return false;
+			}
+			@Override public int minArity() {
+				return 3;
+			}
+			@Override public String getName() {
+				return "setOf";
+			}
+		};
+
+		global.declare("setOf", setOf);
+
+		FunctionValue getOf = new FunctionValue(null, this, global) {
+			@Override
+			public Value call(TableValue env, List<Value> arguments) {
+				if (arguments.size() < 2) {
+					return throwError("getOf espera (obj, key)");
+				}
+
+				Value target = arguments.get(0);
+				Value keyVal = arguments.get(1);
+
+				if (!target.isTable()) {
+					return throwError("getOf espera uma tabela");
+				}
+
+				if (!keyVal.isString()) {
+					return throwError("key deve ser string");
+				}
+
+				TableValue table = target.asTable();
+				String key = keyVal.asString();
+
+				return table.get(key);
+			}
+
+			@Override public int arity() {
+				return 2;
+			}
+			@Override public boolean hasVarargs() {
+				return false;
+			}
+			@Override public int minArity() {
+				return 2;
+			}
+			@Override public String getName() {
+				return "getOf";
+			}
+		};
+
+		global.declare("getOf", getOf);
+
 		// sqrt
 		FunctionValue sqrt = new FunctionValue(null, this, global) {
 			@Override
@@ -125,17 +247,17 @@ public class Executor implements ExprVisitor<Value>, Callable {
 			}
 		};
 		global.declare("sqrt", sqrt);
- }
+	}
 
- private ThrowValue throwError(String message, Position position) {
+	private ThrowValue throwError(String message, Position position) {
 		return new ThrowValue(new StringValue(message + " em " + position), null);
- }
+	}
 
- private ThrowValue throwError(String message) {
+	private ThrowValue throwError(String message) {
 		return new ThrowValue(new StringValue(message), null);
- }
+	}
 
- private TableValue prepareFunctionExecution(
+	private TableValue prepareFunctionExecution(
 		TableValue closure, List<String> params, boolean hasVarargs, List<Value> arguments) {
 		TableValue newTable = closure.child();
 
@@ -172,13 +294,13 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		}
 
 		return newTable;
- }
+	}
 
- public Value executeFunction(FunDeclExpr function, TableValue env, TableValue closure) {
+	public Value executeFunction(FunDeclExpr function, TableValue env, TableValue closure) {
 		return executeFunction(function, env, new ArrayList<>(), closure);
- }
+	}
 
- public Value executeFunction(
+	public Value executeFunction(
 		FunDeclExpr function, TableValue callEnv, List<Value> arguments, TableValue closure) {
 		int minArgs = function.hasVarargs ? function.parameters.size() - 1 : function.parameters.size();
 		int maxArgs = function.hasVarargs ? Integer.MAX_VALUE : function.parameters.size();
@@ -187,13 +309,13 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		if (argCount < minArgs) {
 			String funcName = function.name != null ? function.name : "anonymous";
 			return throwError(
-				"Função " + funcName + " espera no mínimo " + minArgs + " argumentos, recebeu " + argCount);
+					   "Função " + funcName + " espera no mínimo " + minArgs + " argumentos, recebeu " + argCount);
 		}
 
 		if (!function.hasVarargs && argCount != maxArgs) {
 			String funcName = function.name != null ? function.name : "anonymous";
 			return throwError(
-				"Função " + funcName + " espera exatamente " + maxArgs + " argumentos, recebeu " + argCount);
+					   "Função " + funcName + " espera exatamente " + maxArgs + " argumentos, recebeu " + argCount);
 		}
 
 		TableValue funcEnv =
@@ -227,9 +349,9 @@ public class Executor implements ExprVisitor<Value>, Callable {
 
 		this.current = previous;
 		return result;
- }
+	}
 
- private Value execute(List<Expr> statements, TableValue env) {
+	private Value execute(List<Expr> statements, TableValue env) {
 		TableValue previous = this.current;
 		this.current = env.child();
 
@@ -253,14 +375,14 @@ public class Executor implements ExprVisitor<Value>, Callable {
 
 		this.current = previous;
 		return result;
- }
+	}
 
- public Value execute(List<Expr> statements) {
+	public Value execute(List<Expr> statements) {
 		return execute(statements, current);
- }
+	}
 
- @Override
- public Value visitLiteralExpr(LiteralExpr expr) {
+	@Override
+	public Value visitLiteralExpr(LiteralExpr expr) {
 		Object value = expr.value;
 		if (value == null)
 			return NullValue.INSTANCE;
@@ -271,18 +393,18 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		if (value instanceof Boolean)
 			return BooleanValue.of((Boolean) value);
 		return new StringValue(value.toString());
- }
+	}
 
- @Override
- public Value visitVarExpr(VarExpr expr) {
+	@Override
+	public Value visitVarExpr(VarExpr expr) {
 		if (current.has(expr.name)) {
 			return current.get(expr.name);
 		}
 		return throwError("Variável não definida: " + expr.name, expr.getPosition());
- }
+	}
 
- @Override
- public Value visitAssignExpr(AssignExpr expr) {
+	@Override
+	public Value visitAssignExpr(AssignExpr expr) {
 		Value value = expr.value.accept(this);
 		if (value.isReturn() || value.isThrow())
 			return value;
@@ -297,10 +419,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		} catch (RuntimeException e) {
 			return throwError(e.getMessage(), expr.getPosition());
 		}
- }
+	}
 
- @Override
- public Value visitVarDeclExpr(VarDeclExpr expr) {
+	@Override
+	public Value visitVarDeclExpr(VarDeclExpr expr) {
 		Value value = NullValue.INSTANCE;
 		if (expr.value != null) {
 			Value val = expr.value.accept(this);
@@ -329,10 +451,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		} catch (RuntimeException e) {
 			return throwError(e.getMessage(), expr.getPosition());
 		}
- }
+	}
 
- @Override
- public Value visitFunDeclExpr(FunDeclExpr expr) {
+	@Override
+	public Value visitFunDeclExpr(FunDeclExpr expr) {
 		FunctionValue func = new FunctionValue(expr, this, current);
 		try {
 			if (!expr.anonymous)
@@ -341,10 +463,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		} catch (RuntimeException e) {
 			return throwError(e.getMessage(), expr.getPosition());
 		}
- }
+	}
 
- @Override
- public Value visitDecorExpr(DecorExpr expr) {
+	@Override
+	public Value visitDecorExpr(DecorExpr expr) {
 		// Obtém a função decorator do escopo atual
 		Value decorFunc = current.get(expr.name);
 		if (decorFunc.isThrow())
@@ -376,10 +498,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 
 		// Cria e retorna um DecoratorValue usando of()
 		return DecoratorValue.of(result.asTable());
- }
+	}
 
- @Override
- public Value visitObjectExpr(ObjectExpr expr) {
+	@Override
+	public Value visitObjectExpr(ObjectExpr expr) {
 		TableValue previous = this.current;
 		TableValue blockEnv = this.current.child();
 		this.current = blockEnv;
@@ -395,10 +517,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 
 		this.current = previous;
 		return blockEnv;
- }
+	}
 
- @Override
- public Value visitReturnExpr(ReturnExpr expr) {
+	@Override
+	public Value visitReturnExpr(ReturnExpr expr) {
 		if (expr.value != null) {
 			Value value = expr.value.accept(this);
 			if (value.isThrow())
@@ -406,10 +528,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 			return new ReturnValue(value, expr);
 		}
 		return new ReturnValue(NullValue.INSTANCE, expr);
- }
+	}
 
- @Override
- public Value visitThrowExpr(ThrowExpr expr) {
+	@Override
+	public Value visitThrowExpr(ThrowExpr expr) {
 		if (expr.value != null) {
 			Value value = expr.value.accept(this);
 			if (value.isReturn())
@@ -417,10 +539,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 			return new ThrowValue(value, expr);
 		}
 		return new ThrowValue(NullValue.INSTANCE, expr);
- }
+	}
 
- @Override
- public Value visitIfExpr(IfExpr expr) {
+	@Override
+	public Value visitIfExpr(IfExpr expr) {
 		Value condition = expr.condition.accept(this);
 		if (condition.isReturn() || condition.isThrow())
 			return condition;
@@ -460,10 +582,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		}
 
 		return NullValue.INSTANCE;
- }
+	}
 
- @Override
- public Value visitWhileExpr(WhileExpr expr) {
+	@Override
+	public Value visitWhileExpr(WhileExpr expr) {
 		boolean shouldBreak = false;
 
 		while (!shouldBreak) {
@@ -502,20 +624,20 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		}
 
 		return NullValue.INSTANCE;
- }
+	}
 
- @Override
- public Value visitBreakExpr(BreakExpr expr) {
+	@Override
+	public Value visitBreakExpr(BreakExpr expr) {
 		return BreakValue.INSTANCE;
- }
+	}
 
- @Override
- public Value visitContinueExpr(ContinueExpr expr) {
+	@Override
+	public Value visitContinueExpr(ContinueExpr expr) {
 		return ContinueValue.INSTANCE;
- }
+	}
 
- @Override
- public Value visitBinaryExpr(BinaryExpr expr) {
+	@Override
+	public Value visitBinaryExpr(BinaryExpr expr) {
 		String op = expr.operator;
 
 		if (op.equals("??")) {
@@ -543,68 +665,68 @@ public class Executor implements ExprVisitor<Value>, Callable {
 
 		try {
 			switch (op) {
-				case "+":
-					if (left.isNumber() && right.isNumber()) {
-						return NumberValue.of(left.asNumber() + right.asNumber());
-					}
-					return new StringValue(left.toString() + right.toString());
-				case "-":
-					if (!left.isNumber() || !right.isNumber()) {
-						return throwError("Operador - requer números", expr.getPosition());
-					}
-					return NumberValue.of(left.asNumber() - right.asNumber());
-				case "*":
-					if (!left.isNumber() || !right.isNumber()) {
-						return throwError("Operador * requer números", expr.getPosition());
-					}
-					return NumberValue.of(left.asNumber() * right.asNumber());
-				case "/":
-					if (!left.isNumber() || !right.isNumber()) {
-						return throwError("Operador / requer números", expr.getPosition());
-					}
-					double r = right.asNumber();
-					if (r == 0)
-						return throwError("Divisão por zero", expr.getPosition());
-					return NumberValue.of(left.asNumber() / r);
-				case "%":
-					if (!left.isNumber() || !right.isNumber()) {
-						return throwError("Operador % requer números", expr.getPosition());
-					}
-					return NumberValue.of(left.asNumber() % right.asNumber());
-				case "==":
-					return BooleanValue.of(left.equals(right));
-				case "!=":
-					return BooleanValue.of(!left.equals(right));
-				case "<":
-					if (!left.isNumber() || !right.isNumber()) {
-						return throwError("Operador < requer números", expr.getPosition());
-					}
-					return BooleanValue.of(left.asNumber() < right.asNumber());
-				case ">":
-					if (!left.isNumber() || !right.isNumber()) {
-						return throwError("Operador > requer números", expr.getPosition());
-					}
-					return BooleanValue.of(left.asNumber() > right.asNumber());
-				case "<=":
-					if (!left.isNumber() || !right.isNumber()) {
-						return throwError("Operador <= requer números", expr.getPosition());
-					}
-					return BooleanValue.of(left.asNumber() <= right.asNumber());
-				case ">=":
-					if (!left.isNumber() || !right.isNumber()) {
-						return throwError("Operador >= requer números", expr.getPosition());
-					}
-					return BooleanValue.of(left.asNumber() >= right.asNumber());
-				default:
-					return throwError("Operador desconhecido: " + op, expr.getPosition());
+			case "+":
+				if (left.isNumber() && right.isNumber()) {
+					return NumberValue.of(left.asNumber() + right.asNumber());
+				}
+				return new StringValue(left.toString() + right.toString());
+			case "-":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador - requer números", expr.getPosition());
+				}
+				return NumberValue.of(left.asNumber() - right.asNumber());
+			case "*":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador * requer números", expr.getPosition());
+				}
+				return NumberValue.of(left.asNumber() * right.asNumber());
+			case "/":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador / requer números", expr.getPosition());
+				}
+				double r = right.asNumber();
+				if (r == 0)
+					return throwError("Divisão por zero", expr.getPosition());
+				return NumberValue.of(left.asNumber() / r);
+			case "%":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador % requer números", expr.getPosition());
+				}
+				return NumberValue.of(left.asNumber() % right.asNumber());
+			case "==":
+				return BooleanValue.of(left.equals(right));
+			case "!=":
+				return BooleanValue.of(!left.equals(right));
+			case "<":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador < requer números", expr.getPosition());
+				}
+				return BooleanValue.of(left.asNumber() < right.asNumber());
+			case ">":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador > requer números", expr.getPosition());
+				}
+				return BooleanValue.of(left.asNumber() > right.asNumber());
+			case "<=":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador <= requer números", expr.getPosition());
+				}
+				return BooleanValue.of(left.asNumber() <= right.asNumber());
+			case ">=":
+				if (!left.isNumber() || !right.isNumber()) {
+					return throwError("Operador >= requer números", expr.getPosition());
+				}
+				return BooleanValue.of(left.asNumber() >= right.asNumber());
+			default:
+				return throwError("Operador desconhecido: " + op, expr.getPosition());
 			}
 		} catch (Exception e) {
 			return throwError("Operação inválida: " + op, expr.getPosition());
 		}
- }
+	}
 
- @Override
- public Value visitUnaryExpr(UnaryExpr expr) {
+	@Override
+	public Value visitUnaryExpr(UnaryExpr expr) {
 		Value operand = expr.operand.accept(this);
 		if (operand.isReturn() || operand.isThrow())
 			return operand;
@@ -675,23 +797,23 @@ public class Executor implements ExprVisitor<Value>, Callable {
 			}
 
 			switch (op) {
-				case "-":
-					if (!operand.isNumber()) {
-						return throwError("Operador - requer número", expr.getPosition());
-					}
-					return NumberValue.of(-operand.asNumber());
-				case "!":
-					return BooleanValue.of(!operand.truthy());
-				default:
-					return throwError("Operador unário desconhecido: " + op, expr.getPosition());
+			case "-":
+				if (!operand.isNumber()) {
+					return throwError("Operador - requer número", expr.getPosition());
+				}
+				return NumberValue.of(-operand.asNumber());
+			case "!":
+				return BooleanValue.of(!operand.truthy());
+			default:
+				return throwError("Operador unário desconhecido: " + op, expr.getPosition());
 			}
 		} catch (Exception e) {
 			return throwError("Operação inválida: " + op, expr.getPosition());
 		}
- }
+	}
 
- @Override
- public Value visitLogicalExpr(LogicalExpr expr) {
+	@Override
+	public Value visitLogicalExpr(LogicalExpr expr) {
 		Value left = expr.left.accept(this);
 		if (left.isReturn() || left.isThrow())
 			return left;
@@ -707,10 +829,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 				return left;
 			return expr.right.accept(this);
 		}
- }
+	}
 
- @Override
- public Value visitTernaryExpr(TernaryExpr expr) {
+	@Override
+	public Value visitTernaryExpr(TernaryExpr expr) {
 		Value condition = expr.condition.accept(this);
 		if (condition.isReturn() || condition.isThrow())
 			return condition;
@@ -720,10 +842,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		} else {
 			return expr.elseExpr.accept(this);
 		}
- }
+	}
 
- @Override
- public Value visitCallExpr(CallExpr expr) {
+	@Override
+	public Value visitCallExpr(CallExpr expr) {
 		Value callee = expr.callee.accept(this);
 		if (callee.isReturn() || callee.isThrow())
 			return callee;
@@ -745,14 +867,14 @@ public class Executor implements ExprVisitor<Value>, Callable {
 
 			if (argCount < minArgs) {
 				return throwError("Função " + function.getName() + " espera no mínimo " + minArgs
-						+ " argumentos, recebeu " + argCount,
-					expr.getPosition());
+								  + " argumentos, recebeu " + argCount,
+								  expr.getPosition());
 			}
 
 			if (!function.hasVarargs() && argCount != maxArgs) {
 				return throwError("Função " + function.getName() + " espera exatamente " + maxArgs
-						+ " argumentos, recebeu " + argCount,
-					expr.getPosition());
+								  + " argumentos, recebeu " + argCount,
+								  expr.getPosition());
 			}
 
 			try {
@@ -763,10 +885,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		}
 
 		return throwError("Expressão não é chamável: " + callee.type(), expr.getPosition());
- }
+	}
 
- @Override
- public Value visitGetExpr(GetExpr expr) {
+	@Override
+	public Value visitGetExpr(GetExpr expr) {
 		Value object = expr.object.accept(this);
 		if (object.isReturn() || object.isThrow())
 			return object;
@@ -783,10 +905,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		}
 
 		return throwError("Apenas tabelas têm propriedades", expr.getPosition());
- }
+	}
 
- @Override
- public Value visitSetExpr(SetExpr expr) {
+	@Override
+	public Value visitSetExpr(SetExpr expr) {
 		Value object = expr.object.accept(this);
 		if (object.isReturn() || object.isThrow())
 			return object;
@@ -805,10 +927,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		}
 
 		return throwError("Apenas tabelas podem ter campos", expr.getPosition());
- }
+	}
 
- @Override
- public Value visitIndexGetExpr(IndexGetExpr expr) {
+	@Override
+	public Value visitIndexGetExpr(IndexGetExpr expr) {
 		Value array = expr.array.accept(this);
 		if (array.isReturn() || array.isThrow())
 			return array;
@@ -831,10 +953,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		} catch (RuntimeException e) {
 			return throwError(e.getMessage(), expr.getPosition());
 		}
- }
+	}
 
- @Override
- public Value visitIndexSetExpr(IndexSetExpr expr) {
+	@Override
+	public Value visitIndexSetExpr(IndexSetExpr expr) {
 		Value array = expr.array.accept(this);
 		if (array.isReturn() || array.isThrow())
 			return array;
@@ -862,10 +984,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 		} catch (RuntimeException e) {
 			return throwError(e.getMessage(), expr.getPosition());
 		}
- }
+	}
 
- @Override
- public Value visitArrayExpr(ArrayExpr expr) {
+	@Override
+	public Value visitArrayExpr(ArrayExpr expr) {
 		List<Value> elements = new ArrayList<>();
 		for (Expr element : expr.elements) {
 			Value elem = element.accept(this);
@@ -874,10 +996,10 @@ public class Executor implements ExprVisitor<Value>, Callable {
 			elements.add(elem);
 		}
 		return new ArrayValue(elements);
- }
+	}
 
- @Override
- public Value visitParenthesisExpr(ParenthesisExpr expr) {
+	@Override
+	public Value visitParenthesisExpr(ParenthesisExpr expr) {
 		return expr.expression.accept(this);
- }
+	}
 }
