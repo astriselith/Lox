@@ -1,30 +1,268 @@
-fun readonly() {
-	return {
-		fun init(value) -> value;
-		fun write(currentValue, newValue)  ->  currentValue;
-	};
-}
+// ============================================================================
+// TESTE DE DECORATORS - Versão correta para seu parser
+// ============================================================================
+// IMPORTANTE: Dentro de {}, use 'fun nome() { }' para declarar métodos
+// print/println recebem argumentos entre parênteses
 
-fun range(min,  max) {
+// ----------------------------------------------------------------------------
+// 1. DEFININDO DECORATORS CORRETAMENTE
+// ----------------------------------------------------------------------------
+
+fun TraceVar() {
 	return {
-		fun clamp(val) {
-			if (val < min) return min;
-			if (val > max) return max;
-			return val;
+		fun init(target) {
+			println("🔧 Init: " + target);
+			return target;
 		}
-
-		fun init(initialValue) -> clamp(initialValue);
-		fun write(currentValue, newValue) -> clamp(newValue);
+		fun write(current, newValue) {
+			println("✏️ Write: '" + current + "' -> '" + newValue + "'");
+			return newValue;
+		}
 	};
 }
-@readonly
-var i = 0;
-i = 100;
 
-@range(0, 100)
-var j = 0;
+fun Readonly() {
+	var initialized = false;
 
-j = 500;
+	return {
+		fun init(target) {
+			initialized = true;
+			println("🔒 Readonly: inicializado com " + target);
+			return target;
+		}
+		fun write(current, newValue) {
+			if (initialized) {
+				println("⚠️ Readonly: não pode modificar! Mantendo '" + current + "'");
+				return current;
+			}
+			initialized = true;
+			return newValue;
+		}
+	};
+}
 
-println(i);
-println(j);
+fun PositiveNumber() {
+	return {
+		fun write(current, newValue) {
+			if (typeof(newValue) != "number" or newValue <= 0) {
+				println("❌ PositiveNumber: '" + newValue + "' inválido (precisa ser número positivo)");
+				return current;
+			}
+			return newValue;
+		}
+	};
+}
+
+fun NonNull() {
+	return {
+		fun init(target) {
+			if (target == null) {
+				println("❌ NonNull: valor não pode ser null!");
+				return "default";
+			}
+			return target;
+		}
+		fun write(current, newValue) {
+			if (newValue == null) {
+				println("❌ NonNull: não pode atribuir null!");
+				return current;
+			}
+			return newValue;
+		}
+	};
+}
+
+fun Logger(prefix) {
+	return {
+		fun init(target) {
+			println("[" + prefix + "] Init: " + target);
+			return target;
+		}
+		fun write(current, newValue) {
+			println("[" + prefix + "] Write: " + current + " -> " + newValue);
+			return newValue;
+		}
+	};
+}
+
+fun Clamp(min, max) {
+	return {
+		fun write(current, newValue) {
+			if (typeof(newValue) != "number") {
+				return current;
+			}
+			var clamped = newValue;
+			if (clamped < min) clamped = min;
+			if (clamped > max) clamped = max;
+			if (clamped != newValue) {
+				println("⚠️ Clamp: " + newValue + " ajustado para " + clamped);
+			}
+			return clamped;
+		}
+	};
+}
+
+fun History() {
+	var history = [];
+
+	return {
+		fun init(target) {
+			history = [target];
+			println("📜 History iniciado: " + target);
+			return target;
+		}
+		fun write(current, newValue) {
+			history = history + [newValue];
+			println("📜 History: " + history);
+			return newValue;
+		}
+	};
+}
+
+fun Once() {
+	return {
+		fun init(target) {
+			println("✨ Once: valor fixado como " + target);
+			return target;
+		}
+	};
+}
+
+fun Typed(expectedType) {
+	return {
+		fun init(target) {
+			var actualType = typeof(target);
+			if (actualType != expectedType) {
+				println("❌ Type error: esperado '" + expectedType + "', recebeu '" + actualType + "'");
+				if (expectedType == "number") return 0;
+				if (expectedType == "string") return "";
+				if (expectedType == "boolean") return false;
+				return null;
+			}
+			println("✅ Type check passed: " + expectedType + " = " + target);
+			return target;
+		}
+		fun write(current, newValue) {
+			var actualType = typeof(newValue);
+			if (actualType != expectedType) {
+				println("❌ Type error (write): esperado '" + expectedType + "', recebeu '" + actualType + "'");
+				return current;
+			}
+			return newValue;
+		}
+	};
+}
+
+fun Range(min, max) {
+	return {
+		fun init(target) {
+			if (typeof(target) != "number") {
+				println("❌ Range error: valor não é número");
+				return min;
+			}
+			if (target < min or target > max) {
+				println("⚠️ Range: " + target + " fora de [" + min + ", " + max + "], ajustando");
+				if (target < min) return min;
+				return max;
+			}
+			return target;
+		}
+		fun write(current, newValue) {
+			if (typeof(newValue) != "number") {
+				println("❌ Range error: valor não é número");
+				return current;
+			}
+			if (newValue < min or newValue > max) {
+				println("⚠️ Range: " + newValue + " fora de [" + min + ", " + max + "], mantendo " + current);
+				return current;
+			}
+			return newValue;
+		}
+	};
+}
+
+// ----------------------------------------------------------------------------
+// 2. TESTANDO OS DECORATORS
+// ----------------------------------------------------------------------------
+
+println("\n=== Teste 1: TraceVar ===");
+@TraceVar var x = 10;
+x = 20;
+x = 30;
+
+println("\n=== Teste 2: Readonly ===");
+@Readonly var constante = "fixo";
+println("Valor: " + constante);
+constante = "tentativa";
+println("Após tentativa: " + constante);
+
+println("\n=== Teste 3: PositiveNumber ===");
+@PositiveNumber var idade = 25;
+println("Idade: " + idade);
+idade = -5;
+println("Após -5: " + idade);
+idade = 30;
+println("Após 30: " + idade);
+
+println("\n=== Teste 4: NonNull ===");
+@NonNull var nome = "João";
+println("Nome: " + nome);
+nome = null;
+println("Após null: " + nome);
+nome = "Maria";
+println("Após Maria: " + nome);
+
+println("\n=== Teste 5: Logger ===");
+@Logger("DEBUG") var debugVar = "início";
+debugVar = "meio";
+debugVar = "fim";
+
+println("\n=== Teste 6: Clamp ===");
+@Clamp(0, 100) var percentual = 50;
+percentual = 150;
+println("Percentual: " + percentual);
+percentual = -10;
+println("Percentual: " + percentual);
+percentual = 75;
+println("Percentual: " + percentual);
+
+println("\n=== Teste 7: History ===");
+@History var historico = "primeiro";
+historico = "segundo";
+historico = "terceiro";
+println("Valor final: " + historico);
+
+println("\n=== Teste 8: Once ===");
+@Once var onceVar = "inicial";
+onceVar = "modificado";
+onceVar = "novamente";
+println("OnceVar final: " + onceVar);
+
+println("\n=== Teste 9: Typed ===");
+@Typed("number") var num = 42;
+println("num = " + num);
+@Typed("number") var num2 = "texto";
+println("num2 = " + num2);
+num2 = 100;
+println("num2 = " + num2);
+
+println("\n=== Teste 10: Range ===");
+@Range(0, 100) var score = 75;
+println("score = " + score);
+score = 150;
+println("score = " + score);
+score = -10;
+println("score = " + score);
+
+println("\n=== Teste 11: Múltiplos decorators ===");
+@TraceVar @PositiveNumber var multi = 100;
+multi = 200;
+multi = -50;
+
+println("\n=== Teste 12: typeof ===");
+println("typeof(x): " + typeof(x));
+println("typeof(constante): " + typeof(constante));
+println("typeof(idade): " + typeof(idade));
+println("typeof(percentual): " + typeof(percentual));
+
+println("\n✅ Testes concluídos!");
